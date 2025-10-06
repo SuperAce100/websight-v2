@@ -2,12 +2,12 @@ import json
 import math
 import os
 from dataclasses import dataclass, field
+from collections import defaultdict
 from statistics import mean, pstdev
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from rich import box
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 from rich.tree import Tree
 from rich.text import Text
@@ -133,9 +133,8 @@ class SchemaBuilder:
             tree.add(subtree)
         return tree
 
-    def render(self, title: str = "Schema") -> Panel:
-        tree = self._render_node("root", self.root)
-        return Panel(tree, title=title, border_style="cyan", box=box.ROUNDED)
+    def render(self) -> Tree:
+        return self._render_node("root", self.root)
 
 
 def percentile(sorted_values: List[float], p: float) -> float:
@@ -260,30 +259,38 @@ def accumulate_from_record(aggr: Aggregates, record: Dict[str, Any]) -> None:
                 aggr.total_actions += 1
 
 
-def render_sample(record: Dict[str, Any]) -> Panel:
-    top = Table(box=box.MINIMAL_DOUBLE_HEAD)
-    top.add_column("field", style="bold cyan")
-    top.add_column("value")
+def render_sample(record: Dict[str, Any]) -> Tuple[Text, Table]:
+    # Top-level metadata as styled text (not a table)
+    lines: List[Text] = []
 
-    def add_row_if_present(key: str) -> None:
-        val = record.get(key)
-        if val is not None:
-            display = val
-            if isinstance(val, str) and len(val) > 120:
-                display = val[:120] + "…"
-            top.add_row(key, str(display))
+    def add_line(label: str, value: Any, emphasize: bool = False) -> None:
+        if value is None:
+            return
+        text_value = str(value)
+        if isinstance(value, str) and len(value) > 200:
+            text_value = value[:200] + "…"
+        style = "bold" if emphasize else ""
+        lines.append(
+            Text.assemble(
+                Text(label + ": ", style="bold cyan"),
+                Text(text_value, style=style),
+            )
+        )
 
-    for key in (
-        "task_id",
-        "instruction",
-        "natural_language_task",
-        "actual_task",
-        "task_completed",
-        "alignment_score",
-        "efficiency_score",
-        "task_difficulty",
-    ):
-        add_row_if_present(key)
+    add_line("task_id", record.get("task_id"))
+    add_line("instruction", record.get("instruction"), emphasize=True)
+    add_line("natural_language_task", record.get("natural_language_task"))
+    add_line("actual_task", record.get("actual_task"))
+    add_line("task_completed", record.get("task_completed"))
+    add_line("alignment_score", record.get("alignment_score"))
+    add_line("efficiency_score", record.get("efficiency_score"))
+    add_line("task_difficulty", record.get("task_difficulty"))
+
+    top_text = Text()
+    top_text.append_text(Text("Sample Trajectory (top-level)\n", style="bold"))
+    for t in lines:
+        top_text.append_text(t)
+        top_text.append("\n")
 
     traj_table = Table(box=box.SIMPLE_HEAVY, show_lines=False)
     for col in (
@@ -327,24 +334,13 @@ def render_sample(record: Dict[str, Any]) -> Panel:
                 pick("reflection"),
             )
 
-    grid = Table.grid(expand=True)
-    grid.add_row(Panel(top, title="Top-level", border_style="green"))
-    grid.add_row(Panel(traj_table, title="Trajectory (sample)", border_style="magenta"))
-    return Panel(
-        grid, title="Sample Trajectory", border_style="yellow", box=box.ROUNDED
-    )
+    return top_text, traj_table
 
 
 def analyze(paths: List[str]) -> None:
     total_rows = sum(count_lines_in_file(p) for p in paths)
 
-    console.print(
-        Panel(
-            f"Total number of trajectories: [bold]{total_rows}[/bold]",
-            title="Count",
-            border_style="blue",
-        )
-    )
+    console.print(Text(f"Total trajectories: {total_rows}", style="bold"))
 
     schema = SchemaBuilder()
     samples_needed = 300
@@ -360,7 +356,28 @@ def analyze(paths: List[str]) -> None:
                 schema.add_record(record)
             accumulate_from_record(aggr, record)
 
-    console.print(schema.render(title="Inferred Schema (sampled)"))
+    console.print(Text("Inferred Schema (sampled)", style="bold"))
+    console.print(schema.render())
+
+    # Key completion metrics
+    completed = aggr.task_completed_true
+    failed = aggr.total_rows - aggr.task_completed_true
+    rate = (completed / aggr.total_rows * 100.0) if aggr.total_rows else 0.0
+    console.print(
+        Text.assemble(
+            Text("Tasks completed: ", style="bold"),
+            Text(str(completed), style="green"),
+            Text(f" / {aggr.total_rows} "),
+            Text(f"({rate:.1f}% completed)", style="green"),
+        )
+    )
+    console.print(
+        Text.assemble(
+            Text("Tasks failed: ", style="bold"),
+            Text(str(failed), style="red"),
+            Text(" [dim](where task_completed is False or missing)[/dim]"),
+        )
+    )
 
     numeric_table = build_numeric_table("Numeric Metrics Summary")
     add_numeric_row(
@@ -386,21 +403,71 @@ def analyze(paths: List[str]) -> None:
     overall_table.add_row("steps_redundant_true", str(aggr.step_redundant_true))
     overall_table.add_row("tasks_completed_true", str(aggr.task_completed_true))
 
-    console.print(Panel(overall_table, title="Dataset Stats", border_style="white"))
-    console.print(
-        Panel(numeric_table, title="Numeric Distributions", border_style="white")
-    )
+    overall_table.title = "[dim]Dataset Stats"
+    console.print(overall_table)
+    numeric_table.title = "[dim]Numeric Distributions"
+    console.print(numeric_table)
+
+    # Stratified sample of 20 instructions across difficulties
+    console.print(Text("Instruction samples (varying difficulties)", style="bold"))
+    difficulty_to_instructions: Dict[int, List[str]] = defaultdict(list)
+    max_per_bucket = 40
+    # Re-stream lightly to collect balanced samples without holding entire dataset
+    for path in paths:
+        for record in stream_jsonl(path):
+            instr = record.get("instruction")
+            diff = record.get("task_difficulty")
+            if (
+                isinstance(instr, str)
+                and isinstance(diff, (int, float))
+                and not isinstance(diff, bool)
+            ):
+                d = int(diff)
+                bucket = difficulty_to_instructions[d]
+                if len(bucket) < max_per_bucket:
+                    bucket.append(instr)
+    # Build 20-item sample rotating through available difficulties
+    samples: List[Tuple[int, str]] = []
+    difficulties_sorted = sorted(difficulty_to_instructions.keys())
+    if difficulties_sorted:
+        idx_map = {d: 0 for d in difficulties_sorted}
+        while len(samples) < 20:
+            progressed = False
+            for d in difficulties_sorted:
+                i = idx_map[d]
+                bucket = difficulty_to_instructions[d]
+                if i < len(bucket):
+                    samples.append((d, bucket[i]))
+                    idx_map[d] = i + 1
+                    progressed = True
+                    if len(samples) >= 20:
+                        break
+            if not progressed:
+                break
+
+    # Print with colored difficulty and dimmed difficulty label
+    def difficulty_style(d: int) -> str:
+        if d <= 3:
+            return "green"
+        if d <= 6:
+            return "yellow"
+        return "red"
+
+    for d, instr in samples:
+        text = Text.assemble(
+            Text("[", style="dim"),
+            Text(f"d={d}", style=difficulty_style(d)),
+            Text("] ", style="dim"),
+            Text(instr),
+        )
+        console.print(text)
 
     if sample_record is not None:
-        console.print(render_sample(sample_record))
+        top_text, traj_tbl = render_sample(sample_record)
+        console.print(top_text)
+        console.print(traj_tbl)
     else:
-        console.print(
-            Panel(
-                "No sample record available.",
-                title="Sample Trajectory",
-                border_style="red",
-            )
-        )
+        console.print(Text("No sample record available.", style="red"))
 
 
 if __name__ == "__main__":
