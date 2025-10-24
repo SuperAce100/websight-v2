@@ -8,4 +8,14 @@ dependencies = [
     "huggingface-hub>=0.34.4",
     "marimo>=0.15.2",
     "rich>=14.1.0",
+    "pydantic>=2.9.0",
+    "mss>=9.0.2",
+    "pillow>=10.4.0",
+    "numpy>=2.1.2",
+    "pyautogui>=0.9.54",
 ]
+
+[project.optional-dependencies]
+video = ["opencv-python>=4.10.0.84"]
+hash = ["ImageHash>=4.3.1"]
+rl = ["gymnasium>=1.0.0"]
