@@ -471,9 +471,27 @@ def analyze(paths: List[str]) -> None:
 
 
 if __name__ == "__main__":
-    base = "/Users/asanshaygupta/Documents/Codes/websight-v2/AgentNet"
-    paths = [
-        os.path.join(base, "agentnet_ubuntu_5k.jsonl"),
-        os.path.join(base, "agentnet_win_mac_18k.jsonl"),
+    # Look for data in multiple possible locations
+    possible_bases = [
+        "data",  # Default download location
+        "/Users/asanshaygupta/Documents/Codes/websight-v2/AgentNet",  # Original hardcoded path
+        ".",  # Current directory
     ]
+    
+    paths = []
+    for base in possible_bases:
+        ubuntu_path = os.path.join(base, "agentnet_ubuntu_5k.jsonl")
+        win_mac_path = os.path.join(base, "agentnet_win_mac_18k.jsonl")
+        
+        if os.path.exists(ubuntu_path) and os.path.exists(win_mac_path):
+            paths = [ubuntu_path, win_mac_path]
+            console.print(f"[green]Found dataset files in: {base}[/green]")
+            break
+    
+    if not paths:
+        console.print("[red]Error: Could not find AgentNet dataset files.[/red]")
+        console.print("Please run the download script first:")
+        console.print("python scripts/download_agentnet.py")
+        sys.exit(1)
+    
     analyze(paths)
