@@ -1,6 +1,7 @@
 import json
 import math
 import os
+import sys
 from dataclasses import dataclass, field
 from collections import defaultdict
 from statistics import mean, pstdev
@@ -471,24 +472,16 @@ def analyze(paths: List[str]) -> None:
 
 
 if __name__ == "__main__":
-    # Look for data in multiple possible locations
-    possible_bases = [
-        "data",  # Default download location
-        "/Users/asanshaygupta/Documents/Codes/websight-v2/AgentNet",  # Original hardcoded path
-        ".",  # Current directory
-    ]
+    # Look for data in the data directory (default download location)
+    data_dir = "data"
+    ubuntu_path = os.path.join(data_dir, "agentnet_ubuntu_5k.jsonl")
+    win_mac_path = os.path.join(data_dir, "agentnet_win_mac_18k.jsonl")
     
     paths = []
-    for base in possible_bases:
-        ubuntu_path = os.path.join(base, "agentnet_ubuntu_5k.jsonl")
-        win_mac_path = os.path.join(base, "agentnet_win_mac_18k.jsonl")
-        
-        if os.path.exists(ubuntu_path) and os.path.exists(win_mac_path):
-            paths = [ubuntu_path, win_mac_path]
-            console.print(f"[green]Found dataset files in: {base}[/green]")
-            break
-    
-    if not paths:
+    if os.path.exists(ubuntu_path) and os.path.exists(win_mac_path):
+        paths = [ubuntu_path, win_mac_path]
+        console.print(f"[green]Found dataset files in: {data_dir}[/green]")
+    else:
         console.print("[red]Error: Could not find AgentNet dataset files.[/red]")
         console.print("Please run the download script first:")
         console.print("python scripts/download_agentnet.py")
