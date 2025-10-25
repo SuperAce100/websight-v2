@@ -82,6 +82,10 @@ class Sleep(Action):
     seconds: float
 
 
+class Terminate(Action):
+    type: Literal["terminate"] = "terminate"
+
+
 ActionLike = (
     MouseMove
     | MouseClick
@@ -95,4 +99,5 @@ ActionLike = (
     | Hotkey
     | TextWrite
     | Sleep
+    | Terminate
 )

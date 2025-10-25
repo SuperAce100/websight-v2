@@ -21,6 +21,7 @@ from .actions import (
     MouseRightClick,
     MouseScroll,
     Sleep,
+    Terminate,
     TextWrite,
 )
 from .config import EnvConfig
@@ -135,6 +136,10 @@ class PyAutoGuiBackend:
 
         elif isinstance(action, Sleep):
             time.sleep(max(0.0, action.seconds))
+
+        elif isinstance(action, Terminate):
+            # No-op at backend level; env may choose to end episode
+            pass
 
         else:  # pragma: no cover - defensive
             raise ValueError(f"Unsupported action type: {action.type}")

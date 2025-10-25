@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import ast
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from .actions import (
     Hotkey,
@@ -27,6 +27,13 @@ def _kw(d: Dict[str, Any], key: str, default: Any = None) -> Any:
     return d[key] if key in d else default
 
 
+def _get_first(d: Dict[str, Any], keys: List[str], default: Any = None) -> Any:
+    for k in keys:
+        if k in d:
+            return d[k]
+    return default
+
+
 def parse_code_to_action(code: str):
     node = ast.parse(code.strip())
     if (
@@ -48,58 +55,125 @@ def parse_code_to_action(code: str):
     else:
         raise UnsupportedActionError("Unsupported call target")
 
-    if module not in (None, "pyautogui"):
+    if module not in (None, "pyautogui", "computer"):
         raise UnsupportedActionError(f"Unsupported module: {module}")
 
     # Convert args/kwargs to Python values
     kwargs: Dict[str, Any] = {}
+    args: List[Any] = []
+    for a in call.args:
+        args.append(ast.literal_eval(a))
     for kw in call.keywords:
         kwargs[kw.arg] = ast.literal_eval(kw.value)
 
-    # Map to internal actions
-    if name == "moveTo" or name == "move":
-        return MouseMove(x=float(kwargs["x"]), y=float(kwargs["y"]))
-    if name == "click":
-        return MouseClick(
-            x=float(kwargs["x"]),
-            y=float(kwargs["y"]),
-            button=_kw(kwargs, "button", "left"),
-            clicks=int(_kw(kwargs, "clicks", 1)),
+    # Map to internal actions with flexible naming (pyautogui.* or computer.*)
+    n = name.lower()
+
+    if n in {"moveto", "move_to", "move", "mouse_move", "move_mouse"}:
+        x = _get_first(
+            kwargs, ["x", "x_ratio", "xnorm", "xn"], args[0] if len(args) >= 1 else None
         )
-    if name == "doubleClick":
-        return MouseDoubleClick(
-            x=float(kwargs["x"]),
-            y=float(kwargs["y"]),
-            button=_kw(kwargs, "button", "left"),
+        y = _get_first(
+            kwargs, ["y", "y_ratio", "ynorm", "yn"], args[1] if len(args) >= 2 else None
         )
-    if name == "rightClick":
-        return MouseRightClick(x=float(kwargs["x"]), y=float(kwargs["y"]))
-    if name == "dragTo":
-        # Accept both forms: with x0,y0 provided, or implicit current position
-        x0 = kwargs.get("x0")
-        y0 = kwargs.get("y0")
+        return MouseMove(x=float(x), y=float(y))
+
+    if n in {"click", "leftclick", "left_click"}:
+        x = _get_first(
+            kwargs, ["x", "x_ratio", "xnorm", "xn"], args[0] if len(args) >= 1 else None
+        )
+        y = _get_first(
+            kwargs, ["y", "y_ratio", "ynorm", "yn"], args[1] if len(args) >= 2 else None
+        )
+        button = _kw(kwargs, "button", "left")
+        clicks = int(_kw(kwargs, "clicks", 1))
+        return MouseClick(x=float(x), y=float(y), button=button, clicks=clicks)
+
+    if n in {"doubleclick", "double_click"}:
+        x = _get_first(
+            kwargs, ["x", "x_ratio", "xnorm", "xn"], args[0] if len(args) >= 1 else None
+        )
+        y = _get_first(
+            kwargs, ["y", "y_ratio", "ynorm", "yn"], args[1] if len(args) >= 2 else None
+        )
+        button = _kw(kwargs, "button", "left")
+        return MouseDoubleClick(x=float(x), y=float(y), button=button)
+
+    if n in {"rightclick", "right_click"}:
+        x = _get_first(
+            kwargs, ["x", "x_ratio", "xnorm", "xn"], args[0] if len(args) >= 1 else None
+        )
+        y = _get_first(
+            kwargs, ["y", "y_ratio", "ynorm", "yn"], args[1] if len(args) >= 2 else None
+        )
+        return MouseRightClick(x=float(x), y=float(y))
+
+    if n in {"dragto", "drag_to", "drag"}:
+        x0 = _get_first(kwargs, ["x0", "start_x", "x_start"], None)
+        y0 = _get_first(kwargs, ["y0", "start_y", "y_start"], None)
+        x1 = _get_first(
+            kwargs, ["x1", "end_x", "x_end", "x"], args[0] if len(args) >= 1 else None
+        )
+        y1 = _get_first(
+            kwargs, ["y1", "end_y", "y_end", "y"], args[1] if len(args) >= 2 else None
+        )
+        duration = float(_get_first(kwargs, ["duration", "secs", "seconds"], 0.2))
         return MouseDrag(
             x0=float(x0) if x0 is not None else None,
             y0=float(y0) if y0 is not None else None,
-            x1=float(kwargs["x1"]),
-            y1=float(kwargs["y1"]),
-            duration=float(_kw(kwargs, "duration", 0.2)),
+            x1=float(x1),
+            y1=float(y1),
+            duration=duration,
         )
-    if name == "scroll":
-        return MouseScroll(clicks=int(kwargs["clicks"]))
-    if name == "press":
-        return KeyPress(key=str(kwargs["key"]))
-    if name == "keyDown":
-        return KeyDown(key=str(kwargs["key"]))
-    if name == "keyUp":
-        return KeyUp(key=str(kwargs["key"]))
-    if name == "hotkey":
-        return Hotkey(keys=tuple(kwargs["keys"]))
-    if name == "write":
-        return TextWrite(
-            text=str(kwargs["text"]), interval=float(_kw(kwargs, "interval", 0.0))
+
+    if n == "scroll":
+        clicks = int(
+            _get_first(
+                kwargs, ["clicks", "amount", "delta"], args[0] if len(args) >= 1 else 0
+            )
         )
-    if name == "sleep":
-        return Sleep(seconds=float(kwargs["seconds"]))
+        return MouseScroll(clicks=clicks)
+
+    if n in {"press", "key", "key_press"}:
+        key = _get_first(kwargs, ["key"], args[0] if len(args) >= 1 else None)
+        return KeyPress(key=str(key))
+
+    if n in {"keydown", "key_down"}:
+        key = _get_first(kwargs, ["key"], args[0] if len(args) >= 1 else None)
+        return KeyDown(key=str(key))
+
+    if n in {"keyup", "key_up"}:
+        key = _get_first(kwargs, ["key"], args[0] if len(args) >= 1 else None)
+        return KeyUp(key=str(key))
+
+    if n == "hotkey":
+        keys = kwargs.get("keys")
+        if keys is None:
+            keys = tuple(args)
+        return Hotkey(keys=tuple(str(k) for k in keys))
+
+    if n in {"write", "type", "input", "text"}:
+        text = _get_first(
+            kwargs, ["text", "s", "value"], args[0] if len(args) >= 1 else ""
+        )
+        interval = float(
+            _get_first(kwargs, ["interval"], args[1] if len(args) >= 2 else 0.0)
+        )
+        return TextWrite(text=str(text), interval=interval)
+
+    if n in {"sleep", "wait", "delay"}:
+        seconds = float(
+            _get_first(
+                kwargs,
+                ["seconds", "secs", "duration"],
+                args[0] if len(args) >= 1 else 0.0,
+            )
+        )
+        return Sleep(seconds=seconds)
+
+    if n in {"terminate", "end", "finish"}:
+        from .actions import Terminate
+
+        return Terminate()
 
     raise UnsupportedActionError(f"Unsupported action name: {name}")

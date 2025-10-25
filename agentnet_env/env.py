@@ -96,7 +96,8 @@ class AgentNetDesktopEnv:
         # Observation: latest screen image
         obs = cap.post_img if cap.post_img is not None else self.screen.grab()
         reward = 0.0
-        terminated = False
+        # Done handling: if action is terminate, mark terminated
+        terminated = getattr(act, "type", None) == "terminate"
         truncated = False
         info: Dict[str, Any] = {
             "success": success,
