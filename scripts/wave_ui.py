@@ -30,6 +30,7 @@ import argparse
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
+import re
 from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 import pyarrow.dataset as ds
@@ -57,6 +58,9 @@ class SplitStats:
     platform_counts: Counter[str] = field(default_factory=Counter)
     type_counts: Counter[str] = field(default_factory=Counter)
     language_counts: Counter[str] = field(default_factory=Counter)
+    source_counts: Counter[str] = field(default_factory=Counter)
+    website_counts: Counter[str] = field(default_factory=Counter)
+    action_counts: Counter[str] = field(default_factory=Counter)
     unique_sources: int = 0
     avg_resolution: Optional[Tuple[float, float]] = None
     samples: List[dict[str, Any]] = field(default_factory=list)
@@ -82,6 +86,55 @@ def _preview(value: Optional[str], limit: int = 120) -> Optional[str]:
     if len(value) <= limit:
         return value
     return value[:limit] + "…"
+
+
+DOMAIN_REGEX = re.compile(
+    r"(?:https?://|www\.)?([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)", re.IGNORECASE
+)
+
+
+def _extract_domains_from_row(row: dict[str, Any]) -> Iterable[str]:
+    domains: set[str] = set()
+    for key in ("instruction", "description", "purpose", "expectation", "name"):
+        value = row.get(key)
+        if not isinstance(value, str):
+            continue
+        for match in DOMAIN_REGEX.finditer(value):
+            domain = match.group(1).lower()
+            if domain.startswith("www."):
+                domain = domain[4:]
+            if domain:
+                domains.add(domain)
+    return domains
+
+
+def _normalise_action(instruction: Any, element_type: Any) -> Optional[str]:
+    if isinstance(instruction, str):
+        text = instruction.strip()
+        if text:
+            if "->" in text:
+                candidate = text.split("->")[-1].strip()
+                if candidate:
+                    return candidate.upper().replace(" ", "_")
+            if text.startswith("[") and "]" in text:
+                bracket = text.split("]", 1)[0]
+                label = bracket[1:].strip()
+                if label:
+                    return label.upper().replace(" ", "_")
+            if "," in text:
+                parts = [
+                    segment.strip() for segment in text.split(",") if segment.strip()
+                ]
+                if parts:
+                    return parts[-1].upper().replace(" ", "_")
+            first_word = text.split()[0]
+            if first_word:
+                return first_word.upper().replace(" ", "_")
+    if isinstance(element_type, str):
+        label = element_type.strip()
+        if label:
+            return label.upper().replace(" ", "_")
+    return None
 
 
 def _coerce_local_data_root(path: Path) -> Path:
@@ -156,6 +209,9 @@ def _collect_split_stats(
     platform_counts: Counter[str] = Counter()
     type_counts: Counter[str] = Counter()
     language_counts: Counter[str] = Counter()
+    source_counts: Counter[str] = Counter()
+    website_counts: Counter[str] = Counter()
+    action_counts: Counter[str] = Counter()
     unique_sources_set: set[str] = set()
 
     total_width = 0.0
@@ -163,9 +219,19 @@ def _collect_split_stats(
     resolution_count = 0
 
     if scan_stats:
-        columns_to_scan = [
-            *(col for col in ("platform", "type", "language", "source", "resolution") if col in dataset.schema.names)
-        ]
+        columns_needed = {
+            "platform",
+            "type",
+            "language",
+            "source",
+            "resolution",
+            "instruction",
+            "description",
+            "purpose",
+            "expectation",
+            "name",
+        }
+        columns_to_scan = [col for col in columns_needed if col in dataset.schema.names]
 
         if columns_to_scan:
             try:
@@ -180,7 +246,9 @@ def _collect_split_stats(
                         )
                     if "type" in batch.schema.names:
                         type_counts.update(
-                            value for value in batch.column("type").to_pylist() if isinstance(value, str) and value
+                            value
+                            for value in batch.column("type").to_pylist()
+                            if isinstance(value, str) and value
                         )
                     if "language" in batch.schema.names:
                         language_counts.update(
@@ -189,19 +257,43 @@ def _collect_split_stats(
                             if isinstance(value, str) and value
                         )
                     if "source" in batch.schema.names:
-                        unique_sources_set.update(
+                        values = [
                             value
                             for value in batch.column("source").to_pylist()
                             if isinstance(value, str) and value
-                        )
+                        ]
+                        source_counts.update(values)
+                        unique_sources_set.update(values)
                     if "resolution" in batch.schema.names:
                         for entry in batch.column("resolution").to_pylist():
                             if isinstance(entry, (list, tuple)) and len(entry) >= 2:
                                 width, height = entry[0], entry[1]
-                                if isinstance(width, (int, float)) and isinstance(height, (int, float)):
+                                if isinstance(width, (int, float)) and isinstance(
+                                    height, (int, float)
+                                ):
                                     total_width += float(width)
                                     total_height += float(height)
                                     resolution_count += 1
+
+                    row_level_columns = {
+                        "instruction",
+                        "description",
+                        "purpose",
+                        "expectation",
+                        "name",
+                        "type",
+                    }
+                    if any(
+                        column in batch.schema.names for column in row_level_columns
+                    ):
+                        for row in batch.to_pylist():
+                            for domain in _extract_domains_from_row(row):
+                                website_counts[domain] += 1
+                            action_label = _normalise_action(
+                                row.get("instruction"), row.get("type")
+                            )
+                            if action_label:
+                                action_counts[action_label] += 1
             except Exception as exc:
                 console.print(
                     Text.assemble(
@@ -214,6 +306,9 @@ def _collect_split_stats(
                 platform_counts.clear()
                 type_counts.clear()
                 language_counts.clear()
+                source_counts.clear()
+                website_counts.clear()
+                action_counts.clear()
                 unique_sources_set.clear()
                 total_width = 0.0
                 total_height = 0.0
@@ -238,7 +333,6 @@ def _collect_split_stats(
             "language",
             "bbox",
             "resolution",
-            "OCR",
             "purpose",
             "expectation",
         )
@@ -253,13 +347,27 @@ def _collect_split_stats(
             console.print(
                 Text.assemble(
                     Text("Warning: ", style="yellow"),
-                    Text(f"could not collect samples for split '{split}' due to: {exc}."),
+                    Text(
+                        f"could not collect samples for split '{split}' due to: {exc}."
+                    ),
                 )
             )
             table = None
 
         if table is not None:
             for row in table.to_pylist():
+                action_label = _normalise_action(
+                    row.get("instruction"), row.get("type")
+                )
+                if not scan_stats:
+                    source_value = row.get("source")
+                    if isinstance(source_value, str) and source_value:
+                        source_counts.update([source_value])
+                        unique_sources_set.add(source_value)
+                    for domain in _extract_domains_from_row(row):
+                        website_counts[domain] += 1
+                    if action_label:
+                        action_counts.update([action_label])
                 normalised: dict[str, Any] = {}
                 for key, value in row.items():
                     if isinstance(value, str):
@@ -268,6 +376,8 @@ def _collect_split_stats(
                         normalised[key] = [round(float(v), 2) for v in value]
                     else:
                         normalised[key] = value
+                if action_label:
+                    normalised.setdefault("action", action_label)
                 samples.append(normalised)
 
             if not avg_resolution and samples:
@@ -277,7 +387,9 @@ def _collect_split_stats(
                     resolution = sample.get("resolution")
                     if isinstance(resolution, (list, tuple)) and len(resolution) >= 2:
                         width, height = resolution[0], resolution[1]
-                        if isinstance(width, (int, float)) and isinstance(height, (int, float)):
+                        if isinstance(width, (int, float)) and isinstance(
+                            height, (int, float)
+                        ):
                             widths.append(float(width))
                             heights.append(float(height))
                 if widths and heights:
@@ -292,7 +404,12 @@ def _collect_split_stats(
         platform_counts=platform_counts,
         type_counts=type_counts,
         language_counts=language_counts,
-        unique_sources=len(unique_sources_set),
+        source_counts=source_counts,
+        website_counts=website_counts,
+        action_counts=action_counts,
+        unique_sources=len(unique_sources_set)
+        if unique_sources_set
+        else len(source_counts),
         avg_resolution=avg_resolution,
         samples=samples,
     )
@@ -351,7 +468,9 @@ def collect_wave_ui_stats(
             if index == 0:
                 schema_fields = schema
 
-    return WaveUIReport(repo_id=repo_id, splits=split_stats, schema_fields=schema_fields)
+    return WaveUIReport(
+        repo_id=repo_id, splits=split_stats, schema_fields=schema_fields
+    )
 
 
 def download_wave_ui_dataset(
@@ -369,7 +488,7 @@ def download_wave_ui_dataset(
         Text.assemble(
             Text("Downloading ", style="bold"),
             Text(repo_id, style="cyan"),
-            Text(f" → {target_dir}")
+            Text(f" → {target_dir}"),
         )
     )
 
@@ -390,7 +509,9 @@ def download_wave_ui_dataset(
 def _render_schema(schema_fields: Sequence[Tuple[str, str]]) -> None:
     tree = Tree(Text("Schema", style="bold magenta"))
     for name, dtype in schema_fields:
-        tree.add(Text.assemble(Text(name, style="cyan"), Text(f": {dtype}", style="dim")))
+        tree.add(
+            Text.assemble(Text(name, style="cyan"), Text(f": {dtype}", style="dim"))
+        )
     console.print(tree)
 
 
@@ -412,6 +533,7 @@ def _render_samples(split: SplitStats) -> None:
     table = Table(title=f"[dim]{split.name} samples", box=box.SIMPLE_HEAVY)
     table.add_column("#", justify="right")
     table.add_column("instruction", style="bold")
+    table.add_column("action", justify="left")
     table.add_column("type")
     table.add_column("platform")
     table.add_column("bbox")
@@ -423,6 +545,7 @@ def _render_samples(split: SplitStats) -> None:
         table.add_row(
             str(index),
             sample.get("instruction") or "",
+            sample.get("action") or "",
             sample.get("type") or "",
             sample.get("platform") or "",
             bbox_display,
@@ -443,7 +566,9 @@ def render_report(report: WaveUIReport, expected_pairs: int = 80_000) -> None:
 
     for split in report.splits:
         resolution = (
-            f"{int(split.avg_resolution[0])}×{int(split.avg_resolution[1])}" if split.avg_resolution else "–"
+            f"{int(split.avg_resolution[0])}×{int(split.avg_resolution[1])}"
+            if split.avg_resolution
+            else "–"
         )
         overall.add_row(
             split.name,
@@ -472,9 +597,18 @@ def render_report(report: WaveUIReport, expected_pairs: int = 80_000) -> None:
     for split in report.splits:
         console.print(Text(f"Split: {split.name}", style="bold cyan"))
 
-        _render_counter_table(f"[dim]{split.name} · top platforms", split.platform_counts)
-        _render_counter_table(f"[dim]{split.name} · top types", split.type_counts)
-        _render_counter_table(f"[dim]{split.name} · top languages", split.language_counts)
+        _render_counter_table(
+            f"[dim]{split.name} · top platforms", split.platform_counts
+        )
+        _render_counter_table(
+            f"[dim]{split.name} · top element types", split.type_counts
+        )
+        _render_counter_table(f"[dim]{split.name} · top actions", split.action_counts)
+        _render_counter_table(f"[dim]{split.name} · top sources", split.source_counts)
+        _render_counter_table(f"[dim]{split.name} · top websites", split.website_counts)
+        _render_counter_table(
+            f"[dim]{split.name} · top languages", split.language_counts
+        )
 
         _render_samples(split)
 
@@ -483,7 +617,11 @@ def build_cli_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Download and analyse the agentsea/wave-ui dataset",
     )
-    parser.add_argument("--repo-id", default=DEFAULT_REPO_ID, help="Dataset repository id on Hugging Face")
+    parser.add_argument(
+        "--repo-id",
+        default=DEFAULT_REPO_ID,
+        help="Dataset repository id on Hugging Face",
+    )
     parser.add_argument(
         "--splits",
         nargs="+",
