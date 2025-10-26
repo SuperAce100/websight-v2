@@ -10,3 +10,4 @@ wheels/
 .venv
 AgentNet/
 .env
+wave-ui/
