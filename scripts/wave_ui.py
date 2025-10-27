@@ -13,17 +13,17 @@ from huggingface_hub import snapshot_download
 
 DEFAULT_REPO_ID = "agentsea/wave-ui"
 BATCH_SIZE = 1024
-_DROP = object()
+_SENTINEL: object = object()
 
 
 def cleanse(value: Any) -> Any:
     if isinstance(value, (bytes, bytearray, memoryview)):
-        return _DROP
+        return _SENTINEL
     if isinstance(value, dict):
         cleaned: dict[str, Any] = {}
         for key, item in value.items():
             filtered = cleanse(item)
-            if filtered is _DROP:
+            if filtered is _SENTINEL:
                 continue
             cleaned[key] = filtered
         return cleaned
@@ -31,11 +31,11 @@ def cleanse(value: Any) -> Any:
         cleaned_list: list[Any] = []
         for item in value:
             filtered = cleanse(item)
-            if filtered is _DROP:
+            if filtered is _SENTINEL:
                 continue
             cleaned_list.append(filtered)
         return cleaned_list
-        return value
+    return value
 
 
 def iter_jsonl_files(root: Path) -> Iterable[Path]:
@@ -53,23 +53,23 @@ def iter_jsonl_files(root: Path) -> Iterable[Path]:
             yield path
 
 
-    parser = argparse.ArgumentParser(
+parser = argparse.ArgumentParser(
     description="Download, extract, and summarise the Wave UI dataset.",
-    )
-    parser.add_argument(
+)
+parser.add_argument(
     "data_dir",
-        type=Path,
+    type=Path,
     help="Directory to store or read the extracted dataset",
-    )
+)
 parser.add_argument("--repo-id", default=DEFAULT_REPO_ID)
-    parser.add_argument(
+parser.add_argument(
     "--download",
-        action="store_true",
+    action="store_true",
     help="Download parquet shards and extract them into JSONL+images",
-    )
-    parser.add_argument(
+)
+parser.add_argument(
     "--limit",
-        type=int,
+    type=int,
     help="Optional limit when summarising existing JSONL data",
 )
 args = parser.parse_args()
@@ -85,15 +85,19 @@ images_dir: Path | None = None
 if args.download:
     raw_dir = base_dir / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
-    snapshot_path = Path(
-        snapshot_download(
-            repo_id=args.repo_id,
-            repo_type="dataset",
-            local_dir=raw_dir,
-            local_dir_use_symlinks=False,
-            allow_patterns=("data/*.parquet", "README.md", "LICENSE.md"),
+    snapshot_path = (
+        Path(
+            snapshot_download(
+                repo_id=args.repo_id,
+                repo_type="dataset",
+                local_dir=raw_dir,
+                local_dir_use_symlinks=False,
+                allow_patterns=("data/*.parquet", "README.md", "LICENSE.md"),
+            )
         )
-    ).expanduser().resolve()
+        .expanduser()
+        .resolve()
+    )
 
     parquet_root = snapshot_path / "data"
     images_dir = base_dir / "images"
@@ -124,7 +128,7 @@ if args.download:
                         if key == "image":
                             continue
                         cleaned = cleanse(value)
-                        if cleaned is _DROP:
+                        if cleaned is _SENTINEL:
                             continue
                         record[key] = cleaned
 
