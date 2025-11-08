@@ -1,18 +1,23 @@
 """
 Generate grounding prompts for Qwen vision model desktop clicking tasks using Gemini API.
 
-Reads JSON objects from wave-ui/data.jsonl, constructs natural user prompts using Gemini-2.5-Flash,
+Reads JSON objects from wave-ui/data.jsonl, constructs natural user prompts using Gemini-2.5-Flash-Lite,
 and writes the generated prompts to base/prompts/prompts.jsonl.
 
 The prompts are designed for a vision model that will see the screen image, so they focus on
 text-based identifiers and natural language actions (e.g., "click on the link to 'Product'").
+
+Uses Gemini 2.5 Flash-Lite with rate limits: 4,000 RPM, 4M TPM, no RPD limit.
 """
 
+import asyncio
 import json
 import os
 import sys
+import time
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Dict, Iterator, Optional, List, Tuple
+from dotenv import load_dotenv
 
 try:
     import google.generativeai as genai
@@ -24,6 +29,15 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 
 console = Console()
+
+# Rate limiting configuration
+# Gemini 2.5 Flash-Lite: 4,000 RPM, 4M TPM, no RPD limit
+# Default to 4000 RPM (66.67 RPS) for Flash-Lite
+REQUESTS_PER_MINUTE = int(os.getenv("GEMINI_RPM", "4000"))  # Default for Flash-Lite
+REQUESTS_PER_SECOND = REQUESTS_PER_MINUTE / 60.0
+MIN_INTERVAL = 1.0 / REQUESTS_PER_SECOND  # Minimum time between requests
+# Allow higher concurrency for Flash-Lite (up to 100 concurrent requests)
+MAX_CONCURRENT = min(int(os.getenv("GEMINI_MAX_CONCURRENT", "50")), REQUESTS_PER_MINUTE // 40)
 
 
 def stream_jsonl(path: str) -> Iterator[Dict[str, Any]]:
@@ -82,25 +96,42 @@ def construct_prompt_input(obj: Dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
-def generate_prompt_with_gemini(
-    client: genai.GenerativeModel,
-    obj: Dict[str, Any],
-    max_retries: int = 3
-) -> Optional[str]:
-    """
-    Generate a natural user prompt for a Qwen vision model using Gemini API.
+class RateLimiter:
+    """Rate limiter to respect API quotas."""
+    def __init__(self, requests_per_second: float):
+        self.min_interval = 1.0 / requests_per_second
+        self.last_request_time = 0.0
+        self.lock = asyncio.Lock()
     
-    Creates a prompt that will be used with a screenshot image to train/ground a vision model
-    for desktop clicking tasks. The prompt focuses on text-based identifiers and natural
-    language actions.
+    async def acquire(self):
+        """Wait until we can make a request."""
+        async with self.lock:
+            now = time.time()
+            elapsed = now - self.last_request_time
+            if elapsed < self.min_interval:
+                await asyncio.sleep(self.min_interval - elapsed)
+            self.last_request_time = time.time()
+
+
+async def generate_prompt_with_gemini_async(
+    model: genai.GenerativeModel,
+    obj: Dict[str, Any],
+    rate_limiter: RateLimiter,
+    idx: int,
+    max_retries: int = 3
+) -> Tuple[int, Optional[str]]:
+    """
+    Generate a natural user prompt for a Qwen vision model using Gemini API (async).
     
     Args:
-        client: The Gemini model instance
-        obj: The JSON object containing element information (text-based fields only)
+        model: The Gemini model instance
+        obj: The JSON object containing element information
+        rate_limiter: Rate limiter instance
+        idx: Record index for tracking
         max_retries: Maximum number of retry attempts
     
     Returns:
-        The generated prompt text (e.g., "click on the link to 'Product'"), or None if generation failed
+        Tuple of (index, generated prompt text or None)
     """
     prompt_input = construct_prompt_input(obj)
     
@@ -108,11 +139,10 @@ def generate_prompt_with_gemini(
 The model will see a screenshot image, and your prompt should instruct it to click on a specific UI element.
 
 Given information about a UI element, create a natural, concise user prompt that:
-1. References the visible text on the element (from OCR) as the primary identifier
+1. Synthesizes the provided information into a natural user prompt
 2. Uses natural, conversational language (e.g., "click on the link to 'Product'" or "click the 'Login' button")
 3. Is action-oriented and clear about what to click
-4. Does NOT reference bounding boxes, coordinates, or visual descriptions (the model sees the image)
-5. Focuses on text-based identifiers that appear in the screenshot
+4. Focuses on text-based identifiers that would appear in the screenshot
 
 Examples of good prompts:
 - "click on the link to 'Product'"
@@ -127,23 +157,50 @@ Generate only the prompt text itself, without any additional explanation, quotes
     
     for attempt in range(max_retries):
         try:
-            response = client.generate_content(full_prompt)
+            # Rate limit before making request
+            await rate_limiter.acquire()
+            
+            # Make the API call in executor to avoid blocking event loop
+            loop = asyncio.get_event_loop()
+            # Use functools.partial or a proper function to avoid closure issues
+            def make_request():
+                return model.generate_content(full_prompt)
+            response = await loop.run_in_executor(None, make_request)
+            
             if response and response.text:
-                return response.text.strip()
+                return (idx, response.text.strip())
             else:
-                console.print(f"[yellow]Warning:[/yellow] Empty response from Gemini (attempt {attempt + 1})")
+                if attempt == max_retries - 1:
+                    console.print(f"[yellow]Warning:[/yellow] Empty response for record {idx}")
         except Exception as e:
-            console.print(f"[red]Error:[/red] Gemini API call failed (attempt {attempt + 1}/{max_retries}): {e}")
-            if attempt < max_retries - 1:
-                import time
-                time.sleep(1)  # Brief delay before retry
+            if attempt == max_retries - 1:
+                console.print(f"[red]Error:[/red] Failed to generate prompt for record {idx}: {e}")
+            else:
+                await asyncio.sleep(1)  # Brief delay before retry
     
-    return None
+    return (idx, None)
 
 
-def main():
-    """Main function to process data and generate prompts."""
+async def process_batch(
+    model: genai.GenerativeModel,
+    batch: List[Tuple[int, Dict[str, Any]]],
+    rate_limiter: RateLimiter,
+    semaphore: asyncio.Semaphore
+) -> List[Tuple[int, Optional[str]]]:
+    """Process a batch of records concurrently."""
+    async def process_one(idx_obj_pair: Tuple[int, Dict[str, Any]]):
+        idx, obj = idx_obj_pair
+        async with semaphore:
+            return await generate_prompt_with_gemini_async(model, obj, rate_limiter, idx)
+    
+    tasks = [process_one(pair) for pair in batch]
+    return await asyncio.gather(*tasks)
+
+
+async def main_async():
+    """Main async function to process data and generate prompts with batching."""
     # Get API key from environment
+    load_dotenv()
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         console.print("[red]Error:[/red] GEMINI_API_KEY environment variable not set.")
@@ -153,12 +210,16 @@ def main():
     
     # Configure Gemini
     genai.configure(api_key=api_key)
-    # Try gemini-2.5-flash, fallback to gemini-2.0-flash-exp if not available
+    # Use gemini-2.5-flash-lite (4k RPM, 4M TPM, no RPD limit)
     try:
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        model = genai.GenerativeModel("gemini-2.5-flash-lite")
     except Exception:
-        console.print("[yellow]Warning:[/yellow] gemini-2.5-flash not available, trying gemini-2.0-flash-exp")
-        model = genai.GenerativeModel("gemini-2.0-flash-exp")
+        console.print("[yellow]Warning:[/yellow] gemini-2.5-flash-lite not available, trying gemini-2.5-flash")
+        try:
+            model = genai.GenerativeModel("gemini-2.5-flash")
+        except Exception:
+            console.print("[yellow]Warning:[/yellow] gemini-2.5-flash not available, trying gemini-2.0-flash-exp")
+            model = genai.GenerativeModel("gemini-2.0-flash-exp")
     
     # Paths
     script_dir = Path(__file__).parent
@@ -175,13 +236,25 @@ def main():
     # Create output directory
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Count total lines for progress
-    total_lines = sum(1 for _ in stream_jsonl(str(data_path)))
+    # Load all records into memory (for batching)
+    console.print("[cyan]Loading records...[/cyan]")
+    records = list(enumerate(stream_jsonl(str(data_path)), start=1))
+    total_lines = len(records)
     console.print(f"[green]Found[/green] {total_lines} records to process")
+    console.print(f"[cyan]Rate limit:[/cyan] {REQUESTS_PER_MINUTE} RPM ({REQUESTS_PER_SECOND:.2f} RPS)")
+    console.print(f"[cyan]Concurrency:[/cyan] {MAX_CONCURRENT} concurrent requests")
     
-    # Process records
+    # Initialize rate limiter and semaphore
+    rate_limiter = RateLimiter(REQUESTS_PER_SECOND)
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT)
+    
+    # Batch size - process in chunks to manage memory
+    batch_size = MAX_CONCURRENT * 10  # Process larger batches
     success_count = 0
     error_count = 0
+    
+    # Store results temporarily (index -> result)
+    results = {}
     
     with Progress(
         SpinnerColumn(),
@@ -192,34 +265,52 @@ def main():
     ) as progress:
         task = progress.add_task("[cyan]Generating prompts...", total=total_lines)
         
-        with open(output_path, "w", encoding="utf-8") as out_file:
-            for idx, obj in enumerate(stream_jsonl(str(data_path)), start=1):
-                prompt_text = generate_prompt_with_gemini(model, obj)
-                
+        # Process in batches
+        for batch_start in range(0, total_lines, batch_size):
+            batch_end = min(batch_start + batch_size, total_lines)
+            batch = records[batch_start:batch_end]
+            
+            # Process batch concurrently
+            batch_results = await process_batch(model, batch, rate_limiter, semaphore)
+            
+            # Store results
+            for idx, prompt_text in batch_results:
+                results[idx] = prompt_text
                 if prompt_text:
-                    # Create output object with original data and generated prompt
-                    output_obj = {
-                        "id": idx,
-                        "original": obj,
-                        "prompt": prompt_text
-                    }
-                    out_file.write(json.dumps(output_obj, ensure_ascii=False) + "\n")
                     success_count += 1
                 else:
                     error_count += 1
-                    console.print(f"[yellow]Warning:[/yellow] Failed to generate prompt for record {idx}")
                 
                 progress.update(task, advance=1)
-                
-                # Periodic status update
-                if idx % 100 == 0:
-                    console.print(f"[cyan]Processed[/cyan] {idx}/{total_lines} records...")
+            
+            # Periodic status update
+            if batch_end % 1000 == 0 or batch_end == total_lines:
+                console.print(f"[cyan]Processed[/cyan] {batch_end}/{total_lines} records... "
+                            f"({success_count} success, {error_count} errors)")
+    
+    # Write results to file in order
+    console.print("[cyan]Writing results to file...[/cyan]")
+    with open(output_path, "w", encoding="utf-8") as out_file:
+        for idx, obj in records:
+            prompt_text = results.get(idx)
+            if prompt_text:
+                output_obj = {
+                    "id": idx,
+                    "original": obj,
+                    "prompt": prompt_text
+                }
+                out_file.write(json.dumps(output_obj, ensure_ascii=False) + "\n")
     
     # Summary
     console.print(f"\n[green]✓[/green] Successfully generated: {success_count} prompts")
     if error_count > 0:
         console.print(f"[yellow]⚠[/yellow] Failed: {error_count} prompts")
     console.print(f"[green]Output written to:[/green] {output_path}")
+
+
+def main():
+    """Main entry point."""
+    asyncio.run(main_async())
 
 
 if __name__ == "__main__":
