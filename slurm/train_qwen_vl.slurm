@@ -1,5 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=qwen3vl_finetune
+#SBATCH --account=ingrai
+#SBATCH --partition=hai
 #SBATCH --output=logs/train_qwen3vl_%j.out
 #SBATCH --error=logs/train_qwen3vl_%j.err
 #SBATCH --time=08:00:00
@@ -8,7 +10,6 @@
 #SBATCH --gres=gpu:8
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=480G
-#SBATCH --partition=gpu
 
 # Qwen3-VL-8B Fine-tuning on 8xH100 GPUs
 # Training time: up to 8 hours

@@ -1,5 +1,7 @@
 # Qwen3-VL Fine-tuning - Quick Start Guide
 
+> **🖥️ HAI Cluster Users**: See [`HAI_CLUSTER_GUIDE.md`](HAI_CLUSTER_GUIDE.md) for cluster-specific instructions!
+
 ## TL;DR - Get Training in 4 Steps
 
 ### 0️⃣ Download Dataset (if needed, ~1-2 hours)
@@ -37,7 +39,12 @@ source venv/bin/activate
 ### 3️⃣ Start Training (via SLURM, 8 hours)
 
 ```bash
+# Generic SLURM cluster
 sbatch slurm/train_qwen_vl.slurm
+
+# HAI Cluster (must specify account)
+sbatch --account=ingrai slurm/train_qwen_vl.slurm
+
 # Monitor: tail -f logs/train_qwen3vl_*.out
 ```
 

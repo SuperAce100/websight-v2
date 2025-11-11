@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=prepare_qwen_data
+#SBATCH --account=ingrai
 #SBATCH --output=logs/prepare_data_%j.out
 #SBATCH --error=logs/prepare_data_%j.err
 #SBATCH --time=01:00:00
@@ -68,9 +69,9 @@ echo "Transforming dataset..."
 echo "========================================"
 
 python scripts/transform_for_training.py \
-    --input /hai/scratch/websight-v2/data/prompts.jsonl \
+    --input "${DATA_DIR}/prompts.jsonl" \
     --output-dir data \
-    --base-image-path /hai/scratch/websight-v2/data \
+    --base-image-path "${DATA_DIR}" \
     --val-ratio 0.1 \
     --seed 42
 
