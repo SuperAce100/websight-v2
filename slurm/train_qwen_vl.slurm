@@ -182,7 +182,7 @@ llamafactory-cli train \
     --eval_dataset wave_ui_val \
     --dataset_dir "${WORKSPACE_DIR}/data" \
     --template qwen2_vl \
-    --image_folder /hai/scratch/asanshay/websight-v2/data \
+    --media_dir /hai/scratch/asanshay/websight-v2/data \
     --cutoff_len 8192 \
     --max_samples 100000 \
     --preprocessing_num_workers 16 \
