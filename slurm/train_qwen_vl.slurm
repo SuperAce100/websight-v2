@@ -157,20 +157,60 @@ echo "GPUs: 8xH100"
 echo "Batch size: 2 per device × 4 grad accum × 8 GPUs = effective 64"
 echo ""
 
-# Run training with DeepSpeed
-# Using deepspeed launcher for multi-GPU training
-deepspeed --num_gpus=8 --master_port=29500 \
-    LLaMA-Factory/src/train.py \
-    configs/qwen_vl_lora.yaml \
-    --dataset_dir "${WORKSPACE_DIR}/data" \
-    --dataset_info "${WORKSPACE_DIR}/configs/dataset_info.json"
+# Set TRITON_CACHE_DIR to avoid NFS warning
+export TRITON_CACHE_DIR="${WORKSPACE_DIR}/.cache/triton"
+mkdir -p "${TRITON_CACHE_DIR}"
 
-# Alternative: Use accelerate launch if deepspeed is not available
-# accelerate launch --config_file configs/accelerate_config.yaml \
-#     LLaMA-Factory/src/train.py \
-#     configs/qwen_vl_lora.yaml \
-#     --dataset_dir "${WORKSPACE_DIR}/data" \
-#     --dataset_info "${WORKSPACE_DIR}/configs/dataset_info.json"
+# Link dataset_info.json to LLaMA-Factory data directory
+mkdir -p LLaMA-Factory/data
+ln -sf "${WORKSPACE_DIR}/configs/dataset_info.json" LLaMA-Factory/data/dataset_info.json
+echo "✓ Linked dataset_info.json to LLaMA-Factory/data/"
+
+# Run training with LLaMA-Factory CLI
+# Using llamafactory-cli with DeepSpeed for multi-GPU training
+llamafactory-cli train \
+    --model_name_or_path Qwen/Qwen3-VL-8B-Instruct \
+    --stage sft \
+    --do_train true \
+    --finetuning_type lora \
+    --lora_target all \
+    --lora_rank 64 \
+    --lora_alpha 128 \
+    --lora_dropout 0.05 \
+    --use_rslora true \
+    --dataset wave_ui_dataset \
+    --eval_dataset wave_ui_val \
+    --dataset_dir "${WORKSPACE_DIR}/data" \
+    --template qwen2_vl \
+    --cutoff_len 8192 \
+    --max_samples 100000 \
+    --preprocessing_num_workers 16 \
+    --output_dir saves/qwen3-vl-8b/lora/sft \
+    --logging_steps 10 \
+    --save_steps 500 \
+    --plot_loss true \
+    --overwrite_output_dir false \
+    --per_device_train_batch_size 2 \
+    --per_device_eval_batch_size 2 \
+    --gradient_accumulation_steps 4 \
+    --learning_rate 5e-5 \
+    --num_train_epochs 2.5 \
+    --lr_scheduler_type cosine \
+    --warmup_ratio 0.05 \
+    --bf16 true \
+    --ddp_timeout 180000000 \
+    --evaluation_strategy steps \
+    --eval_steps 500 \
+    --optim adamw_torch \
+    --weight_decay 0.01 \
+    --max_grad_norm 1.0 \
+    --save_strategy steps \
+    --save_total_limit 3 \
+    --deepspeed configs/deepspeed_zero2.json \
+    --logging_dir logs/qwen3-vl-8b \
+    --report_to tensorboard \
+    --gradient_checkpointing true \
+    --flash_attn fa2
 
 EXIT_CODE=$?
 

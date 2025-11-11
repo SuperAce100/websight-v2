@@ -1,6 +1,6 @@
 {
   "wave_ui_dataset": {
-    "file_name": "data/wave_ui_train.jsonl",
+    "file_name": "wave_ui_train.jsonl",
     "formatting": "sharegpt",
     "columns": {
       "messages": "messages",
@@ -14,7 +14,7 @@
     }
   },
   "wave_ui_val": {
-    "file_name": "data/wave_ui_val.jsonl",
+    "file_name": "wave_ui_val.jsonl",
     "formatting": "sharegpt",
     "columns": {
       "messages": "messages",
