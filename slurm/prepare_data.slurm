@@ -27,9 +27,20 @@ echo ""
 # module load cuda/12.1
 
 # Activate virtual environment
-# Adjust this path to your actual virtual environment
-WORKSPACE_DIR="/Users/asanshaygupta/Documents/Codes/websight-v2"
+# Adjust this path to your actual workspace
+WORKSPACE_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
 cd "${WORKSPACE_DIR}"
+
+# Dataset location
+DATA_DIR="/hai/scratch/websight-v2/data"
+
+# Verify dataset exists
+if [ ! -f "${DATA_DIR}/prompts.jsonl" ]; then
+    echo "✗ Error: Dataset not found at ${DATA_DIR}/prompts.jsonl"
+    exit 1
+fi
+
+echo "✓ Found dataset at ${DATA_DIR}/prompts.jsonl"
 
 # If using uv (as per user preferences)
 if command -v uv &> /dev/null; then
@@ -57,9 +68,9 @@ echo "Transforming dataset..."
 echo "========================================"
 
 python scripts/transform_for_training.py \
-    --input wave-ui/prompts.jsonl \
+    --input /hai/scratch/websight-v2/data/prompts.jsonl \
     --output-dir data \
-    --base-image-path wave-ui \
+    --base-image-path /hai/scratch/websight-v2/data \
     --val-ratio 0.1 \
     --seed 42
 

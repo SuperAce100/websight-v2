@@ -1,6 +1,14 @@
 # Qwen3-VL Fine-tuning - Quick Start Guide
 
-## TL;DR - Get Training in 3 Steps
+## TL;DR - Get Training in 4 Steps
+
+### 0️⃣ Download Dataset (if needed, ~1-2 hours)
+
+```bash
+# Edit slurm/download_dataset.slurm to set your data source, then:
+sbatch slurm/download_dataset.slurm
+# Or download directly: python scripts/download_dataset.py --url https://your-dataset-url
+```
 
 ### 1️⃣ Setup (5 minutes)
 
@@ -32,19 +40,21 @@ Trains **Qwen3-VL-8B** to generate PyAutoGUI commands from:
 - 📝 Natural language instruction (e.g., "click on the login button")
 - 📊 Output: PyAutoGUI command (e.g., "pyautogui.click(945, 523)")
 
-**Dataset**: ~79k image-instruction-location pairs from wave-ui
+**Dataset**: ~79k image-instruction-location pairs from `/hai/scratch/websight-v2/data`
 
 ---
 
 ## Alternative: Local Testing
 
 ```bash
-# Prepare data locally
+# Prepare data locally (reads from /hai/scratch/websight-v2/data)
 python scripts/transform_for_training.py
 
 # Test on 1 GPU (for debugging)
 python scripts/train.py --num-gpus 1 --no-deepspeed
 ```
+
+> **Note**: Dataset is at `/hai/scratch/websight-v2/data/prompts.jsonl` with images in `images/` subdirectory.
 
 ---
 
@@ -127,17 +137,20 @@ The model learns to map visual elements + instructions → executable PyAutoGUI 
 ## Files Created
 
 ```
+✓ scripts/download_dataset.py        - Dataset download utility
 ✓ scripts/transform_for_training.py  - Data transformation
 ✓ scripts/train.py                   - Training launcher
 ✓ configs/qwen_vl_lora.yaml         - Training config
 ✓ configs/deepspeed_zero2.json      - DeepSpeed config
 ✓ configs/dataset_info.json         - Dataset registration
+✓ slurm/download_dataset.slurm      - Dataset download job
 ✓ slurm/prepare_data.slurm          - Data prep job
 ✓ slurm/train_qwen_vl.slurm         - Training job
 ✓ setup_training.sh                  - Auto-setup script
 ✓ requirements-training.txt          - Dependencies
 ✓ TRAINING_README.md                 - Full documentation
 ✓ SETUP_SUMMARY.md                   - Detailed overview
+✓ DATASET_INFO.md                    - Dataset location & structure
 ```
 
 ---
@@ -171,6 +184,8 @@ The model learns to map visual elements + instructions → executable PyAutoGUI 
 
 - **Full docs**: `TRAINING_README.md`
 - **Setup overview**: `SETUP_SUMMARY.md`
+- **Dataset download**: `DOWNLOAD_GUIDE.md`
+- **Dataset info**: `DATASET_INFO.md`
 - **Config details**: `configs/qwen_vl_lora.yaml`
 
 ---

@@ -25,12 +25,18 @@ websight-v2/
 ├── data/                           # Generated training data (created by scripts)
 │   ├── wave_ui_train.jsonl
 │   └── wave_ui_val.jsonl
-├── wave-ui/                        # Source dataset
-│   ├── prompts.jsonl
-│   └── images/
 └── saves/                          # Training checkpoints and outputs
     └── qwen3-vl-8b/lora/sft/
+
+Source Dataset (on cluster):
+/hai/scratch/websight-v2/data/
+├── prompts.jsonl                   # ~79k samples
+└── images/                         # UI screenshots
+    ├── 000000.png
+    └── ...
 ```
+
+See `DATASET_INFO.md` for detailed dataset information.
 
 ## Setup
 
@@ -63,19 +69,54 @@ pip install git+https://github.com/huggingface/transformers
 
 ## Usage
 
+### Step 0: Download the Dataset (if needed)
+
+If the dataset is not already at `/hai/scratch/websight-v2/data`, download it first:
+
+**Via SLURM (recommended):**
+1. Edit `slurm/download_dataset.slurm` and configure your data source:
+   - Set `DOWNLOAD_URL` for direct HTTP/HTTPS download
+   - Set `HF_REPO` and `HF_FILE` for HuggingFace Hub
+   - Set `LOCAL_PATH` to copy from existing location
+
+2. Submit the job:
+```bash
+sbatch slurm/download_dataset.slurm
+```
+
+**Or download directly:**
+```bash
+# From URL
+python scripts/download_dataset.py --url https://your-dataset-url/dataset.tar.gz
+
+# From HuggingFace
+python scripts/download_dataset.py --hf-repo username/websight-v2 --hf-file dataset.tar.gz
+
+# Copy from local path
+python scripts/download_dataset.py --local-path /path/to/dataset
+```
+
+The script will:
+- Download/copy the dataset
+- Extract to `/hai/scratch/websight-v2/data`
+- Verify the structure is correct
+- Report statistics
+
 ### Step 1: Prepare the Dataset
 
-Transform the wave-ui dataset into the training format:
+Transform the dataset into the training format:
 
 **Local execution:**
 ```bash
 python scripts/transform_for_training.py \
-    --input wave-ui/prompts.jsonl \
+    --input /hai/scratch/websight-v2/data/prompts.jsonl \
     --output-dir data \
-    --base-image-path wave-ui \
+    --base-image-path /hai/scratch/websight-v2/data \
     --val-ratio 0.1 \
     --seed 42
 ```
+
+> **Note**: The dataset is located at `/hai/scratch/websight-v2/data` on the cluster. The script will reference images from this location.
 
 **SLURM execution:**
 ```bash

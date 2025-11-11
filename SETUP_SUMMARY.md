@@ -90,6 +90,16 @@ chmod +x setup_training.sh
 
 ### Option 2: Manual Setup
 
+#### Step 0: Download Dataset (if needed)
+```bash
+# Configure and run download
+# Edit slurm/download_dataset.slurm first, then:
+sbatch slurm/download_dataset.slurm
+
+# Or use Python script directly
+python scripts/download_dataset.py --url https://your-url/dataset.tar.gz
+```
+
 #### Step 1: Install Dependencies
 ```bash
 pip install -r requirements-training.txt
@@ -99,12 +109,14 @@ cd LLaMA-Factory && pip install -e . && cd ..
 
 #### Step 2: Prepare Data
 ```bash
-# Local
+# Local (dataset at /hai/scratch/websight-v2/data)
 python scripts/transform_for_training.py
 
 # Or via SLURM
 sbatch slurm/prepare_data.slurm
 ```
+
+> **Dataset Location**: `/hai/scratch/websight-v2/data/prompts.jsonl` with images in `/hai/scratch/websight-v2/data/images/`
 
 #### Step 3: Train Model
 ```bash
@@ -117,7 +129,7 @@ python scripts/train.py --num-gpus 8
 
 ## Dataset Format
 
-**Input** (`wave-ui/prompts.jsonl`):
+**Input** (`/hai/scratch/websight-v2/data/prompts.jsonl`):
 ```json
 {
   "id": 1,
@@ -148,7 +160,7 @@ python scripts/train.py --num-gpus 8
       "content": "pyautogui.click(892, 336)"
     }
   ],
-  "images": ["wave-ui/images/000000.png"]
+  "images": ["/hai/scratch/websight-v2/data/images/000000.png"]
 }
 ```
 

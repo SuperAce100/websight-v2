@@ -34,8 +34,11 @@ echo ""
 # module load python/3.10
 
 # Set workspace directory
-WORKSPACE_DIR="/Users/asanshaygupta/Documents/Codes/websight-v2"
+WORKSPACE_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
 cd "${WORKSPACE_DIR}"
+
+# Dataset location
+DATA_DIR="/hai/scratch/websight-v2/data"
 
 # Activate virtual environment
 # Adjust this path to your actual virtual environment
