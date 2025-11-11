@@ -3,17 +3,20 @@
 ## TL;DR - Get Training in 3 Steps
 
 ### 1️⃣ Setup (5 minutes)
+
 ```bash
 ./setup_training.sh
 ```
 
 ### 2️⃣ Prepare Data (via SLURM, ~10 minutes)
+
 ```bash
 sbatch slurm/prepare_data.slurm
 # Check status: squeue -u $USER
 ```
 
 ### 3️⃣ Start Training (via SLURM, 8 hours)
+
 ```bash
 sbatch slurm/train_qwen_vl.slurm
 # Monitor: tail -f logs/train_qwen3vl_*.out
@@ -24,6 +27,7 @@ sbatch slurm/train_qwen_vl.slurm
 ## What This Does
 
 Trains **Qwen3-VL-8B** to generate PyAutoGUI commands from:
+
 - 📸 UI screenshot
 - 📝 Natural language instruction (e.g., "click on the login button")
 - 📊 Output: PyAutoGUI command (e.g., "pyautogui.click(945, 523)")
@@ -64,6 +68,7 @@ srun --jobid=<job_id> nvidia-smi
 **Model location**: `saves/qwen3-vl-8b/lora/sft/`
 
 **Use for inference**:
+
 ```python
 from transformers import Qwen3VLForConditionalGeneration, AutoProcessor
 from peft import PeftModel
@@ -99,16 +104,18 @@ exec(command)
 ## Output Format
 
 **Input**: Natural language + Image
+
 ```
-System: You are a GUI automation assistant. Given an image and a user instruction, 
+System: You are a GUI automation assistant. Given an image and a user instruction,
         output the exact pyautogui.click(x, y) command to execute the action.
         Coordinates are normalized to 1400x800 resolution.
-        
+
 Image: [UI screenshot]
 Prompt: "click on the login button"
 ```
 
 **Output**: PyAutoGUI command (1400x800 normalized)
+
 ```python
 pyautogui.click(945, 523)
 ```
@@ -137,26 +144,26 @@ The model learns to map visual elements + instructions → executable PyAutoGUI 
 
 ## Training Specs
 
-| Item | Value |
-|------|-------|
-| Model | Qwen3-VL-8B-Instruct |
-| GPUs | 8xH100 (80GB each) |
-| Time | ~6-7 hours |
-| Method | LoRA (rank=64) |
-| Batch | 64 effective |
-| Dataset | ~79k samples |
+| Item    | Value                |
+| ------- | -------------------- |
+| Model   | Qwen3-VL-8B-Instruct |
+| GPUs    | 8xH100 (80GB each)   |
+| Time    | ~6-7 hours           |
+| Method  | LoRA (rank=64)       |
+| Batch   | 64 effective         |
+| Dataset | ~79k samples         |
 
 ---
 
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| OOM error | Reduce `per_device_train_batch_size` in config |
-| SLURM job pending | Check partition name, adjust in `.slurm` files |
-| LLaMA-Factory not found | Run `./setup_training.sh` |
-| Slow training | Verify Flash Attention 2 installed |
-| Data not found | Run `sbatch slurm/prepare_data.slurm` first |
+| Issue                   | Solution                                       |
+| ----------------------- | ---------------------------------------------- |
+| OOM error               | Reduce `per_device_train_batch_size` in config |
+| SLURM job pending       | Check partition name, adjust in `.slurm` files |
+| LLaMA-Factory not found | Run `./setup_training.sh`                      |
+| Slow training           | Verify Flash Attention 2 installed             |
+| Data not found          | Run `sbatch slurm/prepare_data.slurm` first    |
 
 ---
 
@@ -169,4 +176,3 @@ The model learns to map visual elements + instructions → executable PyAutoGUI 
 ---
 
 **Ready? Run:** `./setup_training.sh` 🚀
-
