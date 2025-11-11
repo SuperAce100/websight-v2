@@ -5,11 +5,12 @@
 ### 0️⃣ Download Dataset (if needed, ~1-2 hours)
 
 ```bash
-# Edit scripts/download_dataset.sh to set your data source, then:
+# Default: Downloads from HuggingFace (agentsea/wave-ui)
+# Automatically extracts parquet files to JSONL + images
 ./scripts/download_dataset.sh
 
-# Or set via environment variable:
-DOWNLOAD_URL=https://your-dataset-url ./scripts/download_dataset.sh
+# Or use Python script directly (same default)
+python scripts/download_dataset.py
 
 # Or use SLURM: sbatch slurm/download_dataset.slurm
 ```
@@ -65,14 +66,13 @@ All data preparation can run directly as shell scripts:
 **Environment variables for customization:**
 
 ```bash
-# Custom dataset location
+# Custom dataset location for data prep
 DATA_DIR=/custom/path ./scripts/prepare_data.sh
 
-# Download from URL
-DOWNLOAD_URL=https://your-url ./scripts/download_dataset.sh
-
-# Copy from local path
-LOCAL_PATH=/existing/dataset ./scripts/download_dataset.sh
+# Download options (default: agentsea/wave-ui from HuggingFace)
+HF_REPO=agentsea/wave-ui ./scripts/download_dataset.sh     # HuggingFace
+DOWNLOAD_URL=https://your-url ./scripts/download_dataset.sh  # From URL
+LOCAL_PATH=/existing/dataset ./scripts/download_dataset.sh   # Local copy
 ```
 
 > **Note**: Dataset defaults to `/hai/scratch/websight-v2/data/prompts.jsonl`

@@ -67,47 +67,117 @@ def download_from_url(url: str, output_path: Path) -> Path:
         raise
 
 
-def download_from_huggingface(repo_id: str, filename: str, output_path: Path) -> Path:
+def download_and_extract_from_huggingface(repo_id: str, output_dir: Path) -> Path:
     """
-    Download file from HuggingFace Hub.
+    Download parquet dataset from HuggingFace Hub and extract to JSONL + images.
+    Replicates the functionality of wave_ui.py.
     
     Args:
-        repo_id: HuggingFace repository ID (e.g., "username/dataset-name")
-        filename: File to download from the repo
-        output_path: Where to save the file
+        repo_id: HuggingFace repository ID (e.g., "agentsea/wave-ui")
+        output_dir: Where to save extracted data
         
     Returns:
-        Path to downloaded file
+        Path to output directory
     """
     try:
-        from huggingface_hub import hf_hub_download
-    except ImportError:
-        print("✗ huggingface_hub not installed. Install with: pip install huggingface_hub")
+        from huggingface_hub import snapshot_download
+        import pyarrow.dataset as ds
+    except ImportError as e:
+        print(f"✗ Missing required package: {e}")
+        print("Install with: pip install huggingface_hub pyarrow")
         sys.exit(1)
     
-    print(f"Downloading from HuggingFace: {repo_id}/{filename}")
-    print(f"Saving to: {output_path}")
+    print(f"Downloading dataset from HuggingFace: {repo_id}")
+    print(f"Output directory: {output_dir}")
     
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
     
+    # Download parquet files
+    raw_dir = output_dir / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    
+    print("\nDownloading parquet shards...")
     try:
-        downloaded_path = hf_hub_download(
-            repo_id=repo_id,
-            filename=filename,
-            cache_dir=output_path.parent,
-            local_dir=output_path.parent,
-            local_dir_use_symlinks=False
-        )
+        snapshot_path = Path(
+            snapshot_download(
+                repo_id=repo_id,
+                repo_type="dataset",
+                local_dir=raw_dir,
+                local_dir_use_symlinks=False,
+                allow_patterns=("data/*.parquet", "README.md", "LICENSE.md"),
+            )
+        ).resolve()
         
-        # Move to final location if needed
-        if Path(downloaded_path) != output_path:
-            shutil.move(downloaded_path, output_path)
+        print(f"✓ Downloaded to: {snapshot_path}")
         
-        print(f"✓ Download complete: {output_path}")
-        return output_path
     except Exception as e:
         print(f"✗ Download failed: {e}")
         raise
+    
+    # Extract parquet to JSONL + images
+    print("\nExtracting parquet files...")
+    parquet_root = snapshot_path / "data"
+    images_dir = output_dir / "images"
+    images_dir.mkdir(parents=True, exist_ok=True)
+    jsonl_output = output_dir / "prompts.jsonl"
+    
+    BATCH_SIZE = 1024
+    image_index = 0
+    record_count = 0
+    
+    with open(jsonl_output, "w", encoding="utf-8") as jsonl_file:
+        parquet_files = sorted(parquet_root.glob("*.parquet"))
+        
+        for i, parquet_path in enumerate(parquet_files, 1):
+            print(f"  Processing {parquet_path.name} ({i}/{len(parquet_files)})...")
+            dataset = ds.dataset(str(parquet_path), format="parquet")
+            split_name = parquet_path.stem.split("-")[0]
+            
+            for batch in dataset.to_batches(batch_size=BATCH_SIZE, use_threads=True):
+                for row in batch.to_pylist():
+                    # Extract image
+                    image_rel = None
+                    image_entry = row.get("image")
+                    if isinstance(image_entry, dict):
+                        image_bytes = image_entry.get("bytes")
+                        hint = image_entry.get("path") or ""
+                        suffix = Path(hint).suffix or ".png"
+                        filename = f"{image_index:06d}{suffix}"
+                        if image_bytes:
+                            (images_dir / filename).write_bytes(image_bytes)
+                            image_rel = f"images/{filename}"
+                        image_index += 1
+                    
+                    # Build record (exclude image, add image_path)
+                    record = {}
+                    for key, value in row.items():
+                        if key == "image":
+                            continue
+                        # Clean bytes/binary data
+                        if isinstance(value, (bytes, bytearray, memoryview)):
+                            continue
+                        record[key] = value
+                    
+                    if image_rel is not None:
+                        record["image_path"] = image_rel
+                    record["split"] = split_name
+                    
+                    jsonl_file.write(json.dumps(record, ensure_ascii=False) + "\n")
+                    record_count += 1
+                    
+                    if record_count % 10000 == 0:
+                        sys.stdout.write(f'\r  Extracted: {record_count} records, {image_index} images')
+                        sys.stdout.flush()
+        
+        print(f'\r  Extracted: {record_count} records, {image_index} images')
+    
+    print(f"\n✓ Extraction complete!")
+    print(f"  JSONL: {jsonl_output}")
+    print(f"  Images: {images_dir}")
+    print(f"  Total records: {record_count}")
+    print(f"  Total images: {image_index}")
+    
+    return output_dir
 
 
 def extract_archive(archive_path: Path, extract_to: Path) -> Path:
@@ -283,17 +353,19 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Download from URL
-  python scripts/download_dataset.py --url https://example.com/dataset.tar.gz
+  # Download from HuggingFace (default: agentsea/wave-ui)
+  # Downloads parquet files and extracts to JSONL + images
+  python scripts/download_dataset.py
+  python scripts/download_dataset.py --hf-repo agentsea/wave-ui
   
-  # Download from HuggingFace
-  python scripts/download_dataset.py --hf-repo username/websight-v2 --hf-file dataset.tar.gz
+  # Download from URL (tar.gz archive)
+  python scripts/download_dataset.py --url https://example.com/dataset.tar.gz
   
   # Copy from local directory
   python scripts/download_dataset.py --local-path /path/to/dataset
   
-  # Specify custom destination
-  python scripts/download_dataset.py --url https://example.com/dataset.tar.gz --dest /custom/path
+  # Custom destination
+  python scripts/download_dataset.py --hf-repo agentsea/wave-ui --dest /custom/path
         """
     )
     
@@ -305,12 +377,8 @@ Examples:
     parser.add_argument(
         "--hf-repo",
         type=str,
-        help="HuggingFace repository ID (e.g., 'username/dataset-name')"
-    )
-    parser.add_argument(
-        "--hf-file",
-        type=str,
-        help="File to download from HuggingFace repo"
+        default="agentsea/wave-ui",
+        help="HuggingFace repository ID (default: 'agentsea/wave-ui')"
     )
     parser.add_argument(
         "--local-path",
@@ -342,25 +410,19 @@ Examples:
     
     args = parser.parse_args()
     
-    # Validate arguments
+    # Validate arguments - default to HuggingFace if nothing specified
     source_count = sum([
         args.url is not None,
-        args.hf_repo is not None,
         args.local_path is not None
     ])
     
-    if source_count == 0:
-        print("✗ Error: Must specify one source: --url, --hf-repo, or --local-path")
-        parser.print_help()
-        sys.exit(1)
-    
     if source_count > 1:
-        print("✗ Error: Can only specify one source at a time")
+        print("✗ Error: Can only specify one source at a time (--url, --hf-repo, or --local-path)")
         sys.exit(1)
     
-    if args.hf_repo and not args.hf_file:
-        print("✗ Error: --hf-file required when using --hf-repo")
-        sys.exit(1)
+    # Default to HuggingFace if no other source specified
+    if source_count == 0 and args.hf_repo is None:
+        args.hf_repo = "agentsea/wave-ui"
     
     dest_path = Path(args.dest)
     temp_dir = Path(args.temp_dir)
@@ -387,22 +449,21 @@ Examples:
             source_path = Path(args.local_path)
             copy_local_dataset(source_path, dest_path)
             
-        else:
-            # Download from URL or HuggingFace
+        elif args.hf_repo:
+            # Download from HuggingFace and extract parquet files
+            download_and_extract_from_huggingface(args.hf_repo, dest_path)
+            
+        elif args.url:
+            # Download from URL and extract archive
             temp_dir.mkdir(parents=True, exist_ok=True)
             
-            if args.url:
-                # Determine filename from URL
-                filename = args.url.split('/')[-1]
-                if '?' in filename:
-                    filename = filename.split('?')[0]
-                archive_path = temp_dir / filename
-                
-                download_from_url(args.url, archive_path)
-                
-            elif args.hf_repo:
-                archive_path = temp_dir / args.hf_file
-                download_from_huggingface(args.hf_repo, args.hf_file, archive_path)
+            # Determine filename from URL
+            filename = args.url.split('/')[-1]
+            if '?' in filename:
+                filename = filename.split('?')[0]
+            archive_path = temp_dir / filename
+            
+            download_from_url(args.url, archive_path)
             
             # Extract archive
             extract_archive(archive_path, dest_path)

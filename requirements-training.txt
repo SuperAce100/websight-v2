@@ -30,6 +30,7 @@ wandb>=0.16.0
 pillow>=10.0.0
 numpy>=1.24.0
 pandas>=2.0.0
+pyarrow>=14.0.0
 tqdm>=4.66.0
 rich>=13.7.0
 

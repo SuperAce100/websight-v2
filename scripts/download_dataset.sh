@@ -57,12 +57,12 @@ fi
 # CONFIGURATION: Set your download source here
 # =============================================================================
 
-# Option 1: Download from URL
-# DOWNLOAD_URL="https://example.com/websight-v2-dataset.tar.gz"
+# Option 1: Download from HuggingFace (DEFAULT - agentsea/wave-ui)
+# This downloads parquet files and extracts to JSONL + images automatically
+HF_REPO="${HF_REPO:-agentsea/wave-ui}"
 
-# Option 2: Download from HuggingFace
-# HF_REPO="username/websight-v2"
-# HF_FILE="dataset.tar.gz"
+# Option 2: Download from URL (tar.gz archive)
+# DOWNLOAD_URL="https://example.com/websight-v2-dataset.tar.gz"
 
 # Option 3: Copy from local path
 # LOCAL_PATH="/path/to/existing/dataset"
@@ -74,40 +74,28 @@ echo "Downloading dataset..."
 echo "========================================"
 echo ""
 
-# Choose one of the following methods:
+# Choose download method (default: HuggingFace)
 
-if [ ! -z "${DOWNLOAD_URL:-}" ]; then
+if [ ! -z "${LOCAL_PATH:-}" ]; then
+    echo "Method: Local copy"
+    python scripts/download_dataset.py \
+        --local-path "${LOCAL_PATH}" \
+        --dest "${DEST_DIR}"
+
+elif [ ! -z "${DOWNLOAD_URL:-}" ]; then
     echo "Method: Direct URL download"
     python scripts/download_dataset.py \
         --url "${DOWNLOAD_URL}" \
         --dest "${DEST_DIR}" \
         --temp-dir "${TEMP_DIR}"
 
-elif [ ! -z "${HF_REPO:-}" ]; then
-    echo "Method: HuggingFace Hub download"
+else
+    # Default to HuggingFace
+    echo "Method: HuggingFace Hub (${HF_REPO})"
+    echo "This will download parquet files and extract to JSONL + images"
     python scripts/download_dataset.py \
         --hf-repo "${HF_REPO}" \
-        --hf-file "${HF_FILE}" \
-        --dest "${DEST_DIR}" \
-        --temp-dir "${TEMP_DIR}"
-
-elif [ ! -z "${LOCAL_PATH:-}" ]; then
-    echo "Method: Local copy"
-    python scripts/download_dataset.py \
-        --local-path "${LOCAL_PATH}" \
         --dest "${DEST_DIR}"
-
-else
-    echo "✗ Error: No download method configured!"
-    echo ""
-    echo "Please edit scripts/download_dataset.sh and set one of:"
-    echo "  - DOWNLOAD_URL (for direct download)"
-    echo "  - HF_REPO and HF_FILE (for HuggingFace)"
-    echo "  - LOCAL_PATH (to copy from local directory)"
-    echo ""
-    echo "Or pass them as environment variables:"
-    echo "  DOWNLOAD_URL=https://... ./scripts/download_dataset.sh"
-    exit 1
 fi
 
 EXIT_CODE=$?
