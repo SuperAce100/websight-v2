@@ -90,6 +90,8 @@ def transform_record(record: Dict, base_image_path: str = "wave-ui") -> Dict:
     )
 
     # Format for LLaMA-Factory with system prompt
+    # Use relative path from images folder (not full absolute path)
+    # The image_path from the dataset already includes "images/" prefix
     transformed = {
         "messages": [
             {
@@ -99,7 +101,9 @@ def transform_record(record: Dict, base_image_path: str = "wave-ui") -> Dict:
             {"role": "user", "content": f"<image>\n{prompt}"},
             {"role": "assistant", "content": f"pyautogui.click({norm_x}, {norm_y})"},
         ],
-        "images": [f"{base_image_path}/{image_path}"],
+        "images": [
+            image_path
+        ],  # Store relative path, --image_folder will provide the base
     }
 
     return transformed

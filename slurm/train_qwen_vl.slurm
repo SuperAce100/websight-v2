@@ -171,35 +171,35 @@ echo "✓ Linked dataset_info.json to LLaMA-Factory/data/"
 llamafactory-cli train \
     --model_name_or_path Qwen/Qwen3-VL-8B-Instruct \
     --stage sft \
-    --do_train true \
+    --do_train \
     --finetuning_type lora \
     --lora_target all \
     --lora_rank 64 \
     --lora_alpha 128 \
     --lora_dropout 0.05 \
-    --use_rslora true \
+    --use_rslora \
     --dataset wave_ui_dataset \
     --eval_dataset wave_ui_val \
     --dataset_dir "${WORKSPACE_DIR}/data" \
     --template qwen2_vl \
+    --image_folder /hai/scratch/asanshay/websight-v2/data \
     --cutoff_len 8192 \
     --max_samples 100000 \
     --preprocessing_num_workers 16 \
     --output_dir saves/qwen3-vl-8b/lora/sft \
     --logging_steps 10 \
     --save_steps 500 \
-    --plot_loss true \
-    --overwrite_output_dir false \
+    --plot_loss \
     --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 2 \
     --gradient_accumulation_steps 4 \
-    --learning_rate 5e-5 \
+    --learning_rate 5.0e-5 \
     --num_train_epochs 2.5 \
     --lr_scheduler_type cosine \
     --warmup_ratio 0.05 \
-    --bf16 true \
+    --bf16 \
     --ddp_timeout 180000000 \
-    --evaluation_strategy steps \
+    --eval_strategy steps \
     --eval_steps 500 \
     --optim adamw_torch \
     --weight_decay 0.01 \
@@ -207,9 +207,8 @@ llamafactory-cli train \
     --save_strategy steps \
     --save_total_limit 3 \
     --deepspeed configs/deepspeed_zero2.json \
-    --logging_dir logs/qwen3-vl-8b \
     --report_to tensorboard \
-    --gradient_checkpointing true \
+    --gradient_checkpointing \
     --flash_attn fa2
 
 EXIT_CODE=$?
