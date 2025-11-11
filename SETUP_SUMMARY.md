@@ -97,7 +97,7 @@ chmod +x setup_training.sh
 sbatch slurm/download_dataset.slurm
 
 # Or use Python script directly
-python3 scripts/download_dataset.py --url https://your-url/dataset.tar.gz
+python scripts/download_dataset.py --url https://your-url/dataset.tar.gz
 ```
 
 #### Step 1: Install Dependencies
@@ -110,7 +110,7 @@ cd LLaMA-Factory && pip install -e . && cd ..
 #### Step 2: Prepare Data
 ```bash
 # Local (dataset at /hai/scratch/websight-v2/data)
-python3 scripts/transform_for_training.py
+python scripts/transform_for_training.py
 
 # Or via SLURM
 sbatch slurm/prepare_data.slurm
@@ -124,7 +124,7 @@ sbatch slurm/prepare_data.slurm
 sbatch slurm/train_qwen_vl.slurm
 
 # Or local testing
-python3 scripts/train.py --num-gpus 8
+python scripts/train.py --num-gpus 8
 ```
 
 ## Dataset Format

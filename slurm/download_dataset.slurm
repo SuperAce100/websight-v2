@@ -101,7 +101,7 @@ echo ""
 # Method 1: Direct URL download
 if [ ! -z "${DOWNLOAD_URL:-}" ]; then
     echo "Method: Direct URL download"
-    python3 scripts/download_dataset.py \
+    python scripts/download_dataset.py \
         --url "${DOWNLOAD_URL}" \
         --dest "${DEST_DIR}" \
         --temp-dir "${TEMP_DIR}"
@@ -109,14 +109,16 @@ if [ ! -z "${DOWNLOAD_URL:-}" ]; then
 # Method 2: HuggingFace download
 elif [ ! -z "${HF_REPO:-}" ]; then
     echo "Method: HuggingFace Hub download"
-    python3 scripts/download_dataset.py \
+    python scripts/download_dataset.py \
         --hf-repo "${HF_REPO}" \
-        --dest "${DEST_DIR}"
+        --hf-file "${HF_FILE}" \
+        --dest "${DEST_DIR}" \
+        --temp-dir "${TEMP_DIR}"
 
 # Method 3: Local copy
 elif [ ! -z "${LOCAL_PATH:-}" ]; then
     echo "Method: Local copy"
-    python3 scripts/download_dataset.py \
+    python scripts/download_dataset.py \
         --local-path "${LOCAL_PATH}" \
         --dest "${DEST_DIR}"
 
@@ -125,7 +127,7 @@ else
     echo ""
     echo "Please edit slurm/download_dataset.slurm and set one of:"
     echo "  - DOWNLOAD_URL (for direct download)"
-    echo "  - HF_REPO (for HuggingFace, default: agentsea/wave-ui)"
+    echo "  - HF_REPO and HF_FILE (for HuggingFace)"
     echo "  - LOCAL_PATH (to copy from local directory)"
     echo ""
     exit 1

@@ -10,7 +10,7 @@
 ./scripts/download_dataset.sh
 
 # Or use Python script directly (same default)
-python3 scripts/download_dataset.py
+python scripts/download_dataset.py
 
 # Or use SLURM: sbatch slurm/download_dataset.slurm
 ```
@@ -18,7 +18,11 @@ python3 scripts/download_dataset.py
 ### 1️⃣ Setup (5 minutes)
 
 ```bash
-./setup_training.sh
+# Complete setup: creates venv, installs everything
+./setup.sh
+
+# Then activate the environment
+source venv/bin/activate
 ```
 
 ### 2️⃣ Prepare Data (~10 minutes)
@@ -158,6 +162,7 @@ The model learns to map visual elements + instructions → executable PyAutoGUI 
 ## Files Created
 
 ```
+✓ setup.sh                           - Complete setup (venv + dependencies)
 ✓ scripts/download_dataset.sh        - Download dataset (CPU shell script)
 ✓ scripts/prepare_data.sh            - Prepare data (CPU shell script)
 ✓ scripts/download_dataset.py        - Dataset download utility
@@ -169,7 +174,6 @@ The model learns to map visual elements + instructions → executable PyAutoGUI 
 ✓ slurm/download_dataset.slurm      - Dataset download job
 ✓ slurm/prepare_data.slurm          - Data prep job
 ✓ slurm/train_qwen_vl.slurm         - Training job
-✓ setup_training.sh                  - Auto-setup script
 ✓ requirements-training.txt          - Dependencies
 ✓ TRAINING_README.md                 - Full documentation
 ✓ SETUP_SUMMARY.md                   - Detailed overview
