@@ -61,11 +61,21 @@ pip install --upgrade pip --quiet
 
 # Install dependencies
 echo ""
-echo "Installing dependencies..."
+echo "Installing core dependencies..."
 echo "This may take several minutes..."
 echo ""
 
+# Install base packages first
 pip install -r requirements-training.txt
+
+# Install flash-attn separately (needs torch installed first)
+echo ""
+echo "Installing Flash Attention 2..."
+echo "(This may take a while as it compiles from source)"
+pip install flash-attn --no-build-isolation || {
+    echo "⚠ Flash Attention installation failed (optional, training will still work)"
+    echo "You can try installing it later with: pip install flash-attn --no-build-isolation"
+}
 
 # Install transformers from source for latest Qwen3-VL support
 echo ""

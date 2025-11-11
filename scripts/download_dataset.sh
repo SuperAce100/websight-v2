@@ -1,4 +1,4 @@
-#!/bin/bash
+fl#!/bin/bash
 # Download and extract WebSight-v2 dataset
 # Usage: ./scripts/download_dataset.sh
 
