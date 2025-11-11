@@ -79,7 +79,15 @@ def transform_record(record: Dict, base_image_path: str = "wave-ui") -> Dict:
     # Extract data
     bbox = original["bbox"]
     resolution = original["resolution"]  # [width, height]
-    image_path = os.path.join(base_image_path, original["image_path"])
+    raw_image_path = original["image_path"]
+    image_path = (
+        os.path.relpath(
+            os.path.join(base_image_path, raw_image_path), base_image_path
+        )
+        if os.path.isabs(base_image_path)
+        else raw_image_path
+    )
+    image_path = image_path.replace("\\", "/")
     prompt = record["prompt"]
 
     # Sample click location within bbox
@@ -90,17 +98,21 @@ def transform_record(record: Dict, base_image_path: str = "wave-ui") -> Dict:
         click_x, click_y, resolution[0], resolution[1]
     )
 
-    # Format for LLaMA-Factory without system message (not supported in qwen2_vl template)
-    # Use relative path from images folder (not full absolute path)
-    # The image_path from the dataset already includes "images/" prefix
+    # Format for LLaMA-Factory using ShareGPT multimodal schema.
+    user_content = [
+        {"type": "image", "image": image_path},
+        {"type": "text", "text": prompt},
+    ]
+    assistant_content = [
+        {"type": "text", "text": f"pyautogui.click({norm_x}, {norm_y})"}
+    ]
+
     transformed = {
         "messages": [
-            {"role": "user", "content": f"<image>\n{prompt}"},
-            {"role": "assistant", "content": f"pyautogui.click({norm_x}, {norm_y})"},
+            {"role": "user", "content": user_content},
+            {"role": "assistant", "content": assistant_content},
         ],
-        "images": [
-            image_path
-        ],  # Store relative path, --media_dir will provide the base
+        "images": [image_path],  # Store relative path; --media_dir will provide the base
     }
 
     return transformed
