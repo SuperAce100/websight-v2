@@ -90,21 +90,17 @@ def transform_record(record: Dict, base_image_path: str = "wave-ui") -> Dict:
         click_x, click_y, resolution[0], resolution[1]
     )
 
-    # Format for LLaMA-Factory with system prompt
+    # Format for LLaMA-Factory without system message (not supported in qwen2_vl template)
     # Use relative path from images folder (not full absolute path)
     # The image_path from the dataset already includes "images/" prefix
     transformed = {
         "messages": [
-            {
-                "role": "system",
-                "content": "You are a GUI automation assistant. Given an image and a user instruction, output the exact pyautogui.click(x, y) command to execute the action. Coordinates are normalized to 1400x800 resolution.",
-            },
             {"role": "user", "content": f"<image>\n{prompt}"},
             {"role": "assistant", "content": f"pyautogui.click({norm_x}, {norm_y})"},
         ],
         "images": [
             image_path
-        ],  # Store relative path, --image_folder will provide the base
+        ],  # Store relative path, --media_dir will provide the base
     }
 
     return transformed
