@@ -6,7 +6,7 @@ This script:
 1. Reads each record from the original dataset
 2. Samples a random click location within the bounding box
 3. Normalizes coordinates from original resolution to 1400x800
-4. Outputs in LLaMA-Factory conversation format
+4. Outputs in LLaMA-Factory conversation format with PyAutoGUI commands
 """
 
 import json
@@ -90,16 +90,20 @@ def transform_record(record: Dict, base_image_path: str = "wave-ui") -> Dict:
         resolution[0], resolution[1]
     )
     
-    # Format for LLaMA-Factory
+    # Format for LLaMA-Factory with system prompt
     transformed = {
         "messages": [
+            {
+                "role": "system",
+                "content": "You are a GUI automation assistant. Given an image and a user instruction, output the exact pyautogui.click(x, y) command to execute the action. Coordinates are normalized to 1400x800 resolution."
+            },
             {
                 "role": "user",
                 "content": f"<image>\n{prompt}"
             },
             {
                 "role": "assistant",
-                "content": f"{norm_x}, {norm_y}"
+                "content": f"pyautogui.click({norm_x}, {norm_y})"
             }
         ],
         "images": [f"{base_image_path}/{image_path}"]

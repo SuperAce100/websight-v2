@@ -23,10 +23,10 @@ sbatch slurm/train_qwen_vl.slurm
 
 ## What This Does
 
-Trains **Qwen3-VL-8B** to predict click locations from:
+Trains **Qwen3-VL-8B** to generate PyAutoGUI commands from:
 - 📸 UI screenshot
 - 📝 Natural language instruction (e.g., "click on the login button")
-- 📊 Output: normalized coordinates (e.g., "945, 523")
+- 📊 Output: PyAutoGUI command (e.g., "pyautogui.click(945, 523)")
 
 **Dataset**: ~79k image-instruction-location pairs from wave-ui
 
@@ -87,9 +87,33 @@ inputs = processor.apply_chat_template(
 ).to(model.device)
 
 outputs = model.generate(**inputs, max_new_tokens=128)
-coords = processor.batch_decode(outputs, skip_special_tokens=True)[0]
-print(f"Click at: {coords}")  # e.g., "789, 456"
+command = processor.batch_decode(outputs, skip_special_tokens=True)[0]
+print(f"Command: {command}")  # e.g., "pyautogui.click(789, 456)"
+
+# Execute the command
+exec(command)
 ```
+
+---
+
+## Output Format
+
+**Input**: Natural language + Image
+```
+System: You are a GUI automation assistant. Given an image and a user instruction, 
+        output the exact pyautogui.click(x, y) command to execute the action.
+        Coordinates are normalized to 1400x800 resolution.
+        
+Image: [UI screenshot]
+Prompt: "click on the login button"
+```
+
+**Output**: PyAutoGUI command (1400x800 normalized)
+```python
+pyautogui.click(945, 523)
+```
+
+The model learns to map visual elements + instructions → executable PyAutoGUI commands.
 
 ---
 

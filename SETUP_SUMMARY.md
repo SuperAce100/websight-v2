@@ -136,12 +136,16 @@ python scripts/train.py --num-gpus 8
 {
   "messages": [
     {
+      "role": "system",
+      "content": "You are a GUI automation assistant. Given an image and a user instruction, output the exact pyautogui.click(x, y) command to execute the action. Coordinates are normalized to 1400x800 resolution."
+    },
+    {
       "role": "user",
       "content": "<image>\nclick on the product link"
     },
     {
       "role": "assistant",
-      "content": "892, 336"
+      "content": "pyautogui.click(892, 336)"
     }
   ],
   "images": ["wave-ui/images/000000.png"]
@@ -213,7 +217,10 @@ inputs = processor.apply_chat_template(
 
 outputs = model.generate(**inputs, max_new_tokens=128)
 result = processor.batch_decode(outputs, skip_special_tokens=True)[0]
-print(f"Click at: {result}")  # e.g., "945, 523"
+print(f"Command: {result}")  # e.g., "pyautogui.click(945, 523)"
+
+# Execute the click command
+exec(result)
 ```
 
 ## Monitoring

@@ -147,13 +147,17 @@ For smaller setups:
 
 ## Output Format
 
-The model outputs click coordinates as simple text:
+The model outputs PyAutoGUI commands:
 ```
+System: You are a GUI automation assistant. Given an image and a user instruction, 
+        output the exact pyautogui.click(x, y) command to execute the action. 
+        Coordinates are normalized to 1400x800 resolution.
+
 Input: <image>\nclick on the product link
-Output: 892, 336
+Output: pyautogui.click(892, 336)
 ```
 
-Coordinates are normalized to 1400x800 resolution.
+Coordinates are normalized to 1400x800 resolution and formatted as executable PyAutoGUI commands.
 
 ## Inference
 
@@ -194,7 +198,10 @@ inputs = processor.apply_chat_template(
 
 outputs = model.generate(**inputs, max_new_tokens=128)
 result = processor.batch_decode(outputs, skip_special_tokens=True)[0]
-print(f"Click location: {result}")
+print(f"Command: {result}")  # e.g., "pyautogui.click(892, 336)"
+
+# To execute the command:
+# exec(result)
 ```
 
 ## Merging LoRA Weights
