@@ -32,7 +32,7 @@ echo ""
 WORKSPACE_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
 cd "${WORKSPACE_DIR}"
 
-DEST_DIR="/hai/scratch/websight-v2/data"
+DEST_DIR="/hai/scratch/asanshay/websight-v2/data"
 TEMP_DIR="${TMPDIR:-/tmp}/websight-v2-download-${SLURM_JOB_ID}"
 
 echo "Workspace: ${WORKSPACE_DIR}"

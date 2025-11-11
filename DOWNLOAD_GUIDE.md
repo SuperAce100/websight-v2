@@ -49,18 +49,18 @@ For immediate download without SLURM:
 # From URL
 python scripts/download_dataset.py \
     --url https://your-dataset-url.com/dataset.tar.gz \
-    --dest /hai/scratch/websight-v2/data
+    --dest /hai/scratch/asanshay/websight-v2/data
 
 # From HuggingFace Hub
 python scripts/download_dataset.py \
     --hf-repo username/websight-v2 \
     --hf-file dataset.tar.gz \
-    --dest /hai/scratch/websight-v2/data
+    --dest /hai/scratch/asanshay/websight-v2/data
 
 # Copy from local directory
 python scripts/download_dataset.py \
     --local-path /path/to/existing/dataset \
-    --dest /hai/scratch/websight-v2/data
+    --dest /hai/scratch/asanshay/websight-v2/data
 ```
 
 ## Download Methods
@@ -133,7 +133,7 @@ python scripts/download_dataset.py \
 After extraction, the directory should contain:
 
 ```
-/hai/scratch/websight-v2/data/
+/hai/scratch/asanshay/websight-v2/data/
 ├── prompts.jsonl          # Main dataset file (~79k records)
 └── images/                # Image directory
     ├── 000000.png
@@ -148,20 +148,20 @@ After download, verify the dataset:
 
 ```bash
 # Check files exist
-ls -lh /hai/scratch/websight-v2/data/prompts.jsonl
-ls /hai/scratch/websight-v2/data/images/ | head -n 10
+ls -lh /hai/scratch/asanshay/websight-v2/data/prompts.jsonl
+ls /hai/scratch/asanshay/websight-v2/data/images/ | head -n 10
 
 # Count records (should be ~79,413)
-wc -l /hai/scratch/websight-v2/data/prompts.jsonl
+wc -l /hai/scratch/asanshay/websight-v2/data/prompts.jsonl
 
 # View first record
-head -n 1 /hai/scratch/websight-v2/data/prompts.jsonl | python -m json.tool
+head -n 1 /hai/scratch/asanshay/websight-v2/data/prompts.jsonl | python -m json.tool
 ```
 
 Expected output:
 ```
--rw-r--r-- ... 50M ... /hai/scratch/websight-v2/data/prompts.jsonl
-79413 /hai/scratch/websight-v2/data/prompts.jsonl
+-rw-r--r-- ... 50M ... /hai/scratch/asanshay/websight-v2/data/prompts.jsonl
+79413 /hai/scratch/asanshay/websight-v2/data/prompts.jsonl
 ```
 
 ## Troubleshooting
@@ -193,7 +193,8 @@ huggingface-cli login
 **Problem**: Cannot write to `/hai/scratch/websight-v2/data`
 
 **Solution**:
-- Check parent directory exists and is writable
+- Check parent directory exists: `mkdir -p /hai/scratch/asanshay/websight-v2`
+- Verify it's writable: `touch /hai/scratch/asanshay/test && rm /hai/scratch/asanshay/test`
 - Try downloading to a custom location: `--dest ~/my-dataset`
 - Contact cluster administrator for `/hai/scratch/` access
 
@@ -258,7 +259,7 @@ sbatch slurm/prepare_data.slurm
 - **After cleanup**: ~15-20GB (just the dataset)
 
 Make sure you have sufficient space in:
-- Destination directory (`/hai/scratch/websight-v2/data`)
+- Destination directory (`/hai/scratch/asanshay/websight-v2/data`)
 - Temporary directory (default: `/tmp`)
 
 ## Getting Help
@@ -273,7 +274,7 @@ If you encounter issues:
 
 ## After Download
 
-Once the dataset is at `/hai/scratch/websight-v2/data`, proceed with:
+Once the dataset is at `/hai/scratch/asanshay/websight-v2/data`, proceed with:
 
 1. **Data preparation**: `sbatch slurm/prepare_data.slurm`
 2. **Training**: `sbatch slurm/train_qwen_vl.slurm`

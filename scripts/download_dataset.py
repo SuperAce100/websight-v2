@@ -388,8 +388,8 @@ Examples:
     parser.add_argument(
         "--dest",
         type=str,
-        default="/hai/scratch/websight-v2/data",
-        help="Destination directory (default: /hai/scratch/websight-v2/data)"
+        default="/hai/scratch/asanshay/websight-v2/data",
+        help="Destination directory (default: /hai/scratch/asanshay/websight-v2/data)"
     )
     parser.add_argument(
         "--temp-dir",

@@ -29,7 +29,7 @@ websight-v2/
     └── qwen3-vl-8b/lora/sft/
 
 Source Dataset (on cluster):
-/hai/scratch/websight-v2/data/
+/hai/scratch/asanshay/websight-v2/data/
 ├── prompts.jsonl                   # ~79k samples
 └── images/                         # UI screenshots
     ├── 000000.png
@@ -130,14 +130,14 @@ sbatch slurm/prepare_data.slurm
 **Or Python directly:**
 ```bash
 python scripts/transform_for_training.py \
-    --input /hai/scratch/websight-v2/data/prompts.jsonl \
+    --input /hai/scratch/asanshay/websight-v2/data/prompts.jsonl \
     --output-dir data \
-    --base-image-path /hai/scratch/websight-v2/data \
+    --base-image-path /hai/scratch/asanshay/websight-v2/data \
     --val-ratio 0.1 \
     --seed 42
 ```
 
-> **Note**: The dataset is located at `/hai/scratch/websight-v2/data` on the cluster. The script will reference images from this location.
+> **Note**: The dataset is located at `/hai/scratch/asanshay/websight-v2/data` on the cluster. The script will reference images from this location.
 
 This will create:
 - `data/wave_ui_train.jsonl` - Training set (~71k samples)

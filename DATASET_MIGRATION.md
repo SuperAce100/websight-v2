@@ -2,7 +2,7 @@
 
 ## Overview
 
-All scripts and documentation have been updated to use the centralized dataset location at `/hai/scratch/websight-v2/data`.
+All scripts and documentation have been updated to use the centralized dataset location at `/hai/scratch/asanshay/websight-v2/data`.
 
 ## What Changed
 
@@ -25,8 +25,8 @@ All scripts and documentation have been updated to use the centralized dataset l
 #### `scripts/transform_for_training.py`
 ```python
 # Changed defaults:
---input: "wave-ui/prompts.jsonl" → "/hai/scratch/websight-v2/data/prompts.jsonl"
---base-image-path: "wave-ui" → "/hai/scratch/websight-v2/data"
+--input: "wave-ui/prompts.jsonl" → "/hai/scratch/asanshay/websight-v2/data/prompts.jsonl"
+--base-image-path: "wave-ui" → "/hai/scratch/asanshay/websight-v2/data"
 ```
 
 ### 2. SLURM Scripts
@@ -38,7 +38,7 @@ All scripts and documentation have been updated to use the centralized dataset l
 - Validates dataset exists before processing
 
 ```bash
-DATA_DIR="/hai/scratch/websight-v2/data"
+DATA_DIR="/hai/scratch/asanshay/websight-v2/data"
 
 # Verify dataset exists
 if [ ! -f "${DATA_DIR}/prompts.jsonl" ]; then
@@ -137,8 +137,8 @@ ls /hai/scratch/websight-v2/data/images/ | wc -l
 
 Expected output:
 ```
--rw-r--r-- 1 user group 50M Nov 10 16:00 /hai/scratch/websight-v2/data/prompts.jsonl
-79413 /hai/scratch/websight-v2/data/prompts.jsonl
+-rw-r--r-- 1 user group 50M Nov 10 16:00 /hai/scratch/asanshay/websight-v2/data/prompts.jsonl
+79413 /hai/scratch/asanshay/websight-v2/data/prompts.jsonl
 79413
 ```
 
@@ -157,7 +157,7 @@ If you previously prepared data with local paths:
 ## Dataset Structure
 
 ```
-/hai/scratch/websight-v2/data/
+/hai/scratch/asanshay/websight-v2/data/
 ├── prompts.jsonl          # Source dataset (~79k records)
 └── images/                # Image files
     ├── 000000.png
@@ -176,7 +176,7 @@ your-workspace/
 Training data references images using absolute paths:
 ```json
 {
-  "images": ["/hai/scratch/websight-v2/data/images/000000.png"]
+  "images": ["/hai/scratch/asanshay/websight-v2/data/images/000000.png"]
 }
 ```
 
@@ -186,14 +186,14 @@ Training data references images using absolute paths:
 
 ```bash
 # Check if path exists
-ls -ld /hai/scratch/websight-v2/data/
+ls -ld /hai/scratch/asanshay/websight-v2/data/
 
 # Check permissions
-ls -la /hai/scratch/websight-v2/data/prompts.jsonl
+ls -la /hai/scratch/asanshay/websight-v2/data/prompts.jsonl
 
 # Verify you're on a compute node with access
 srun --pty bash
-ls /hai/scratch/websight-v2/data/
+ls /hai/scratch/asanshay/websight-v2/data/
 ```
 
 ### Permission Denied
@@ -206,7 +206,7 @@ ls /hai/scratch/websight-v2/data/
 
 ```bash
 # Should be exactly 79413
-wc -l /hai/scratch/websight-v2/data/prompts.jsonl
+wc -l /hai/scratch/asanshay/websight-v2/data/prompts.jsonl
 
 # If different, dataset may be corrupted or wrong version
 # Contact dataset maintainer

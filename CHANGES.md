@@ -114,7 +114,7 @@ Training data now includes three message roles:
       "content": "pyautogui.click(892, 336)"
     }
   ],
-  "images": ["/hai/scratch/websight-v2/data/images/000000.png"]
+  "images": ["/hai/scratch/asanshay/websight-v2/data/images/000000.png"]
 }
 ```
 

@@ -154,7 +154,7 @@ def main():
     parser.add_argument(
         "--input",
         type=str,
-        default="/hai/scratch/websight-v2/data/prompts.jsonl",
+        default="/hai/scratch/asanshay/websight-v2/data/prompts.jsonl",
         help="Input JSONL file path",
     )
     parser.add_argument(
@@ -166,7 +166,7 @@ def main():
     parser.add_argument(
         "--base-image-path",
         type=str,
-        default="/hai/scratch/websight-v2/data",
+        default="/hai/scratch/asanshay/websight-v2/data",
         help="Base path for image files in output",
     )
     parser.add_argument(

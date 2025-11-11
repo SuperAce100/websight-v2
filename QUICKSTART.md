@@ -51,7 +51,7 @@ Trains **Qwen3-VL-8B** to generate PyAutoGUI commands from:
 - 📝 Natural language instruction (e.g., "click on the login button")
 - 📊 Output: PyAutoGUI command (e.g., "pyautogui.click(945, 523)")
 
-**Dataset**: ~79k image-instruction-location pairs from `/hai/scratch/websight-v2/data`
+**Dataset**: ~79k image-instruction-location pairs from `/hai/scratch/asanshay/websight-v2/data`
 
 ---
 
@@ -79,7 +79,7 @@ DOWNLOAD_URL=https://your-url ./scripts/download_dataset.sh  # From URL
 LOCAL_PATH=/existing/dataset ./scripts/download_dataset.sh   # Local copy
 ```
 
-> **Note**: Dataset defaults to `/hai/scratch/websight-v2/data/prompts.jsonl`
+> **Note**: Dataset defaults to `/hai/scratch/asanshay/websight-v2/data/prompts.jsonl`
 
 ---
 

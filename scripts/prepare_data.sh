@@ -20,7 +20,7 @@ echo "Workspace: ${WORKSPACE_DIR}"
 echo ""
 
 # Dataset location
-DATA_DIR="${DATA_DIR:-/hai/scratch/websight-v2/data}"
+DATA_DIR="${DATA_DIR:-/hai/scratch/asanshay/websight-v2/data}"
 
 # Verify dataset exists
 if [ ! -f "${DATA_DIR}/prompts.jsonl" ]; then

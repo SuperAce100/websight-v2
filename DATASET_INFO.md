@@ -5,13 +5,13 @@
 The training dataset is stored on the cluster at:
 
 ```
-/hai/scratch/websight-v2/data/
+/hai/scratch/asanshay/websight-v2/data/
 ```
 
 ## Structure
 
 ```
-/hai/scratch/websight-v2/data/
+/hai/scratch/asanshay/websight-v2/data/
 ├── prompts.jsonl          # Main dataset file (~79k samples)
 └── images/                # Image directory
     ├── 000000.png
@@ -95,8 +95,8 @@ The dataset is read-only and shared across jobs. All scripts default to this loc
 ```bash
 # Data transformation (default)
 python scripts/transform_for_training.py
-# Reads from: /hai/scratch/websight-v2/data/prompts.jsonl
-# Images from: /hai/scratch/websight-v2/data/images/
+# Reads from: /hai/scratch/asanshay/websight-v2/data/prompts.jsonl
+# Images from: /hai/scratch/asanshay/websight-v2/data/images/
 
 # Override if needed
 python scripts/transform_for_training.py \
@@ -115,7 +115,7 @@ your-workspace/
     └── wave_ui_val.jsonl      # Transformed validation set
 ```
 
-These reference images using absolute paths to `/hai/scratch/websight-v2/data/images/`.
+These reference images using absolute paths to `/hai/scratch/asanshay/websight-v2/data/images/`.
 
 ## Verification
 
@@ -123,16 +123,16 @@ To verify dataset accessibility:
 
 ```bash
 # Check if dataset exists
-ls -lh /hai/scratch/websight-v2/data/prompts.jsonl
+ls -lh /hai/scratch/asanshay/websight-v2/data/prompts.jsonl
 
 # Count records
-wc -l /hai/scratch/websight-v2/data/prompts.jsonl
+wc -l /hai/scratch/asanshay/websight-v2/data/prompts.jsonl
 
 # View first record
-head -n 1 /hai/scratch/websight-v2/data/prompts.jsonl | python -m json.tool
+head -n 1 /hai/scratch/asanshay/websight-v2/data/prompts.jsonl | python -m json.tool
 
 # Check images directory
-ls /hai/scratch/websight-v2/data/images/ | head -n 10
+ls /hai/scratch/asanshay/websight-v2/data/images/ | head -n 10
 ```
 
 ## Storage Requirements

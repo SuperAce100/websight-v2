@@ -32,7 +32,7 @@ WORKSPACE_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
 cd "${WORKSPACE_DIR}"
 
 # Dataset location
-DATA_DIR="/hai/scratch/websight-v2/data"
+DATA_DIR="/hai/scratch/asanshay/websight-v2/data"
 
 # Verify dataset exists
 if [ ! -f "${DATA_DIR}/prompts.jsonl" ]; then

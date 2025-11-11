@@ -12,7 +12,7 @@ echo "Start time: $(date)"
 echo ""
 
 # Configuration
-DEST_DIR="${DEST_DIR:-/hai/scratch/websight-v2/data}"
+DEST_DIR="${DEST_DIR:-/hai/scratch/asanshay/websight-v2/data}"
 TEMP_DIR="${TEMP_DIR:-/tmp/websight-v2-download-$$}"
 
 echo "Destination: ${DEST_DIR}"

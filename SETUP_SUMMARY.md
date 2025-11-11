@@ -116,7 +116,7 @@ python scripts/transform_for_training.py
 sbatch slurm/prepare_data.slurm
 ```
 
-> **Dataset Location**: `/hai/scratch/websight-v2/data/prompts.jsonl` with images in `/hai/scratch/websight-v2/data/images/`
+> **Dataset Location**: `/hai/scratch/asanshay/websight-v2/data/prompts.jsonl` with images in `/hai/scratch/asanshay/websight-v2/data/images/`
 
 #### Step 3: Train Model
 ```bash
@@ -129,7 +129,7 @@ python scripts/train.py --num-gpus 8
 
 ## Dataset Format
 
-**Input** (`/hai/scratch/websight-v2/data/prompts.jsonl`):
+**Input** (`/hai/scratch/asanshay/websight-v2/data/prompts.jsonl`):
 ```json
 {
   "id": 1,
@@ -160,7 +160,7 @@ python scripts/train.py --num-gpus 8
       "content": "pyautogui.click(892, 336)"
     }
   ],
-  "images": ["/hai/scratch/websight-v2/data/images/000000.png"]
+  "images": ["/hai/scratch/asanshay/websight-v2/data/images/000000.png"]
 }
 ```
 
