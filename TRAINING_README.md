@@ -73,18 +73,26 @@ pip install git+https://github.com/huggingface/transformers
 
 If the dataset is not already at `/hai/scratch/websight-v2/data`, download it first:
 
-**Via SLURM (recommended):**
-1. Edit `slurm/download_dataset.slurm` and configure your data source:
-   - Set `DOWNLOAD_URL` for direct HTTP/HTTPS download
-   - Set `HF_REPO` and `HF_FILE` for HuggingFace Hub
-   - Set `LOCAL_PATH` to copy from existing location
+**Using shell script (recommended):**
 
-2. Submit the job:
+1. Edit `scripts/download_dataset.sh` and set your data source, or use environment variables:
+
+```bash
+# Option 1: Edit the script and run
+./scripts/download_dataset.sh
+
+# Option 2: Use environment variables
+DOWNLOAD_URL=https://your-url.com/dataset.tar.gz ./scripts/download_dataset.sh
+HF_REPO=username/websight-v2 HF_FILE=dataset.tar.gz ./scripts/download_dataset.sh
+LOCAL_PATH=/existing/dataset ./scripts/download_dataset.sh
+```
+
+**Via SLURM (optional):**
 ```bash
 sbatch slurm/download_dataset.slurm
 ```
 
-**Or download directly:**
+**Or use Python directly:**
 ```bash
 # From URL
 python scripts/download_dataset.py --url https://your-dataset-url/dataset.tar.gz
@@ -106,7 +114,20 @@ The script will:
 
 Transform the dataset into the training format:
 
-**Local execution:**
+**Shell script (recommended):**
+```bash
+./scripts/prepare_data.sh
+
+# With custom dataset location
+DATA_DIR=/custom/path ./scripts/prepare_data.sh
+```
+
+**SLURM execution (optional):**
+```bash
+sbatch slurm/prepare_data.slurm
+```
+
+**Or Python directly:**
 ```bash
 python scripts/transform_for_training.py \
     --input /hai/scratch/websight-v2/data/prompts.jsonl \
@@ -117,11 +138,6 @@ python scripts/transform_for_training.py \
 ```
 
 > **Note**: The dataset is located at `/hai/scratch/websight-v2/data` on the cluster. The script will reference images from this location.
-
-**SLURM execution:**
-```bash
-sbatch slurm/prepare_data.slurm
-```
 
 This will create:
 - `data/wave_ui_train.jsonl` - Training set (~71k samples)

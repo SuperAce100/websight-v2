@@ -5,9 +5,13 @@
 ### 0️⃣ Download Dataset (if needed, ~1-2 hours)
 
 ```bash
-# Edit slurm/download_dataset.slurm to set your data source, then:
-sbatch slurm/download_dataset.slurm
-# Or download directly: python scripts/download_dataset.py --url https://your-dataset-url
+# Edit scripts/download_dataset.sh to set your data source, then:
+./scripts/download_dataset.sh
+
+# Or set via environment variable:
+DOWNLOAD_URL=https://your-dataset-url ./scripts/download_dataset.sh
+
+# Or use SLURM: sbatch slurm/download_dataset.slurm
 ```
 
 ### 1️⃣ Setup (5 minutes)
@@ -16,11 +20,13 @@ sbatch slurm/download_dataset.slurm
 ./setup_training.sh
 ```
 
-### 2️⃣ Prepare Data (via SLURM, ~10 minutes)
+### 2️⃣ Prepare Data (~10 minutes)
 
 ```bash
-sbatch slurm/prepare_data.slurm
-# Check status: squeue -u $USER
+# Direct execution (recommended)
+./scripts/prepare_data.sh
+
+# Or via SLURM: sbatch slurm/prepare_data.slurm
 ```
 
 ### 3️⃣ Start Training (via SLURM, 8 hours)
@@ -44,17 +50,32 @@ Trains **Qwen3-VL-8B** to generate PyAutoGUI commands from:
 
 ---
 
-## Alternative: Local Testing
+## CPU Jobs (No SLURM Needed)
+
+All data preparation can run directly as shell scripts:
 
 ```bash
-# Prepare data locally (reads from /hai/scratch/websight-v2/data)
-python scripts/transform_for_training.py
+# Download dataset
+./scripts/download_dataset.sh
 
-# Test on 1 GPU (for debugging)
-python scripts/train.py --num-gpus 1 --no-deepspeed
+# Prepare training data
+./scripts/prepare_data.sh
 ```
 
-> **Note**: Dataset is at `/hai/scratch/websight-v2/data/prompts.jsonl` with images in `images/` subdirectory.
+**Environment variables for customization:**
+
+```bash
+# Custom dataset location
+DATA_DIR=/custom/path ./scripts/prepare_data.sh
+
+# Download from URL
+DOWNLOAD_URL=https://your-url ./scripts/download_dataset.sh
+
+# Copy from local path
+LOCAL_PATH=/existing/dataset ./scripts/download_dataset.sh
+```
+
+> **Note**: Dataset defaults to `/hai/scratch/websight-v2/data/prompts.jsonl`
 
 ---
 
@@ -137,6 +158,8 @@ The model learns to map visual elements + instructions → executable PyAutoGUI 
 ## Files Created
 
 ```
+✓ scripts/download_dataset.sh        - Download dataset (CPU shell script)
+✓ scripts/prepare_data.sh            - Prepare data (CPU shell script)
 ✓ scripts/download_dataset.py        - Dataset download utility
 ✓ scripts/transform_for_training.py  - Data transformation
 ✓ scripts/train.py                   - Training launcher
