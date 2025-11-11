@@ -1,0 +1,77 @@
+# Qwen3-VL-8B LoRA Fine-tuning Configuration
+# For training on 8xH100 GPUs with 8-hour time limit
+
+### Model
+model_name_or_path: Qwen/Qwen3-VL-8B-Instruct
+model_revision: main
+
+### Method
+stage: sft
+do_train: true
+finetuning_type: lora
+lora_target: all  # Target all linear layers for comprehensive adaptation
+lora_rank: 64
+lora_alpha: 128
+lora_dropout: 0.05
+use_rslora: true  # Rank-stabilized LoRA for better training stability
+
+### Dataset
+dataset: wave_ui_dataset
+template: qwen2_vl  # Use Qwen2-VL template (compatible with Qwen3-VL)
+cutoff_len: 8192  # Maximum sequence length
+max_samples: 100000  # Process all available samples
+overwrite_cache: false
+preprocessing_num_workers: 16
+
+### Output
+output_dir: saves/qwen3-vl-8b/lora/sft
+logging_steps: 10
+save_steps: 500
+plot_loss: true
+overwrite_output_dir: false
+
+### Training hyperparameters
+per_device_train_batch_size: 2
+per_device_eval_batch_size: 2
+gradient_accumulation_steps: 4
+learning_rate: 5.0e-5
+num_train_epochs: 2.5
+lr_scheduler_type: cosine
+warmup_ratio: 0.05
+bf16: true  # Use BF16 for H100 efficiency
+ddp_timeout: 180000000
+
+### Evaluation
+val_size: 0.0  # We have separate validation file
+evaluation_strategy: steps
+eval_steps: 500
+per_device_eval_batch_size: 2
+do_eval: true
+
+### Optimizer
+optim: adamw_torch
+weight_decay: 0.01
+max_grad_norm: 1.0
+
+### Checkpointing
+save_strategy: steps
+save_total_limit: 3
+save_only_model: false
+
+### DeepSpeed
+deepspeed: configs/deepspeed_zero2.json
+
+### Logging
+logging_dir: logs/qwen3-vl-8b
+report_to: tensorboard
+
+### Additional optimizations
+gradient_checkpointing: true  # Enable to reduce memory usage
+flash_attn: fa2  # Flash Attention 2 for efficiency
+use_cache: false  # Disable KV cache during training
+
+### Vision-specific settings
+# These are auto-detected by the model class but can be overridden
+# image_resolution: auto
+# video_fps: auto
+

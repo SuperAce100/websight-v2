@@ -1,0 +1,39 @@
+# Requirements for Qwen3-VL Fine-tuning
+# Install with: pip install -r requirements-training.txt
+
+# Core dependencies
+torch>=2.1.0
+transformers>=4.57.0
+accelerate>=0.26.0
+peft>=0.7.0
+deepspeed>=0.12.0
+
+# Vision and model dependencies
+qwen-vl-utils>=0.0.8
+tiktoken>=0.5.0
+einops>=0.7.0
+
+# Training utilities
+datasets>=2.16.0
+sentencepiece>=0.1.99
+protobuf>=3.20.0
+
+# Performance optimizations
+flash-attn>=2.5.0
+triton>=2.1.0
+
+# Logging and monitoring
+tensorboard>=2.15.0
+wandb>=0.16.0
+
+# Additional utilities
+pillow>=10.0.0
+numpy>=1.24.0
+pandas>=2.0.0
+tqdm>=4.66.0
+rich>=13.7.0
+
+# Development tools (optional)
+ipython>=8.18.0
+jupyter>=1.0.0
+
