@@ -67,7 +67,7 @@ echo "========================================"
 echo "Transforming dataset..."
 echo "========================================"
 
-python scripts/transform_for_training.py \
+python3 scripts/transform_for_training.py \
     --input /hai/scratch/websight-v2/data/prompts.jsonl \
     --output-dir data \
     --base-image-path /hai/scratch/websight-v2/data \
@@ -99,7 +99,7 @@ fi
 # Show sample
 echo ""
 echo "Sample from training set:"
-head -n 1 data/wave_ui_train.jsonl | python -m json.tool
+head -n 1 data/wave_ui_train.jsonl | python3 -m json.tool
 
 echo ""
 echo "========================================"

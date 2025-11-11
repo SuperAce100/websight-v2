@@ -94,14 +94,17 @@ sbatch slurm/download_dataset.slurm
 
 **Or use Python directly:**
 ```bash
-# From URL
-python scripts/download_dataset.py --url https://your-dataset-url/dataset.tar.gz
+# Default (HuggingFace agentsea/wave-ui)
+python3 scripts/download_dataset.py
 
-# From HuggingFace
-python scripts/download_dataset.py --hf-repo username/websight-v2 --hf-file dataset.tar.gz
+# From URL
+python3 scripts/download_dataset.py --url https://your-dataset-url/dataset.tar.gz
+
+# From HuggingFace custom repo
+python3 scripts/download_dataset.py --hf-repo username/dataset-name
 
 # Copy from local path
-python scripts/download_dataset.py --local-path /path/to/dataset
+python3 scripts/download_dataset.py --local-path /path/to/dataset
 ```
 
 The script will:
@@ -129,7 +132,7 @@ sbatch slurm/prepare_data.slurm
 
 **Or Python directly:**
 ```bash
-python scripts/transform_for_training.py \
+python3 scripts/transform_for_training.py \
     --input /hai/scratch/websight-v2/data/prompts.jsonl \
     --output-dir data \
     --base-image-path /hai/scratch/websight-v2/data \
@@ -153,10 +156,10 @@ sbatch slurm/train_qwen_vl.slurm
 **Local execution (for testing):**
 ```bash
 # Single GPU
-python scripts/train.py --num-gpus 1 --no-deepspeed
+python3 scripts/train.py --num-gpus 1 --no-deepspeed
 
 # Multi-GPU with DeepSpeed
-python scripts/train.py --num-gpus 8
+python3 scripts/train.py --num-gpus 8
 ```
 
 ### Step 3: Monitor Training

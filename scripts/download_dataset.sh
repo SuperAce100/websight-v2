@@ -78,13 +78,13 @@ echo ""
 
 if [ ! -z "${LOCAL_PATH:-}" ]; then
     echo "Method: Local copy"
-    python scripts/download_dataset.py \
+    python3 scripts/download_dataset.py \
         --local-path "${LOCAL_PATH}" \
         --dest "${DEST_DIR}"
 
 elif [ ! -z "${DOWNLOAD_URL:-}" ]; then
     echo "Method: Direct URL download"
-    python scripts/download_dataset.py \
+    python3 scripts/download_dataset.py \
         --url "${DOWNLOAD_URL}" \
         --dest "${DEST_DIR}" \
         --temp-dir "${TEMP_DIR}"
@@ -93,7 +93,7 @@ else
     # Default to HuggingFace
     echo "Method: HuggingFace Hub (${HF_REPO})"
     echo "This will download parquet files and extract to JSONL + images"
-    python scripts/download_dataset.py \
+    python3 scripts/download_dataset.py \
         --hf-repo "${HF_REPO}" \
         --dest "${DEST_DIR}"
 fi

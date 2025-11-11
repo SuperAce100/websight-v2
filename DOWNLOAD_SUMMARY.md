@@ -222,8 +222,8 @@ python scripts/download_dataset.py \
     --url https://your-dataset-url.com/dataset.tar.gz
 
 # Then proceed with training
-python scripts/transform_for_training.py
-python scripts/train.py --num-gpus 8
+python3 scripts/transform_for_training.py
+python3 scripts/train.py --num-gpus 8
 ```
 
 ## Storage Requirements

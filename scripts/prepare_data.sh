@@ -58,7 +58,7 @@ echo "Transforming dataset..."
 echo "========================================"
 echo ""
 
-python scripts/transform_for_training.py \
+python3 scripts/transform_for_training.py \
     --input "${DATA_DIR}/prompts.jsonl" \
     --output-dir data \
     --base-image-path "${DATA_DIR}" \
@@ -94,7 +94,7 @@ if [ ${EXIT_CODE} -eq 0 ]; then
     if [ ${EXIT_CODE} -eq 0 ]; then
         echo ""
         echo "Sample from training set:"
-        head -n 1 data/wave_ui_train.jsonl | python -m json.tool || true
+        head -n 1 data/wave_ui_train.jsonl | python3 -m json.tool || true
     fi
 fi
 
@@ -106,7 +106,7 @@ if [ ${EXIT_CODE} -eq 0 ]; then
     echo "Next steps:"
     echo "  sbatch slurm/train_qwen_vl.slurm  # For GPU training"
     echo "  # or"
-    echo "  python scripts/train.py --num-gpus 8  # Direct training"
+    echo "  python3 scripts/train.py --num-gpus 8  # Direct training"
 else
     echo "✗ Data preparation failed!"
 fi

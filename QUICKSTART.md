@@ -10,7 +10,7 @@
 ./scripts/download_dataset.sh
 
 # Or use Python script directly (same default)
-python scripts/download_dataset.py
+python3 scripts/download_dataset.py
 
 # Or use SLURM: sbatch slurm/download_dataset.slurm
 ```
