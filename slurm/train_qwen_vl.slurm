@@ -161,10 +161,12 @@ echo ""
 export TRITON_CACHE_DIR="${WORKSPACE_DIR}/.cache/triton"
 mkdir -p "${TRITON_CACHE_DIR}"
 
-# Link dataset_info.json to LLaMA-Factory data directory
+# Link dataset_info.json to both LLaMA-Factory and data directories
 mkdir -p LLaMA-Factory/data
+mkdir -p data
 ln -sf "${WORKSPACE_DIR}/configs/dataset_info.json" LLaMA-Factory/data/dataset_info.json
-echo "✓ Linked dataset_info.json to LLaMA-Factory/data/"
+ln -sf "${WORKSPACE_DIR}/configs/dataset_info.json" data/dataset_info.json
+echo "✓ Linked dataset_info.json to LLaMA-Factory/data/ and data/"
 
 # Run training with LLaMA-Factory CLI
 # Using llamafactory-cli with DeepSpeed for multi-GPU training
