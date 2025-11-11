@@ -12,6 +12,7 @@ This script:
 import json
 import random
 import argparse
+import os
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -78,7 +79,7 @@ def transform_record(record: Dict, base_image_path: str = "wave-ui") -> Dict:
     # Extract data
     bbox = original["bbox"]
     resolution = original["resolution"]  # [width, height]
-    image_path = original["image_path"]
+    image_path = os.path.join(base_image_path, original["image_path"])
     prompt = record["prompt"]
 
     # Sample click location within bbox
