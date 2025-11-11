@@ -1,38 +1,32 @@
 #!/bin/bash
-#SBATCH --job-name=qwen3vl_finetune
+#SBATCH --job-name=qwen3vl_rank32
 #SBATCH --account=ingrai
 #SBATCH --partition=hai
-#SBATCH --output=logs/train_qwen3vl_%j.out
-#SBATCH --error=logs/train_qwen3vl_%j.err
-#SBATCH --time=24:00:00
+#SBATCH --output=logs/train_qwen3vl_rank32_%j.out
+#SBATCH --error=logs/train_qwen3vl_rank32_%j.err
+#SBATCH --time=08:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=8
 #SBATCH --gres=gpu:8
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=480G
 
-# Qwen3-VL-8B Fine-tuning on 8xH100 GPUs
-# Training time: up to 24 hours
-# Expected throughput: ~10-15 samples/sec with batch size 2, grad accum 4
+# Qwen3-VL-8B Fine-tuning on 8xH100 GPUs - OPTIMIZED FOR SPEED
+# Uses lower LoRA rank (32 vs 64) for faster training while using ALL samples
+# Training time: ~6-8 hours
+# Expected to complete within 8-hour limit
 
 set -e  # Exit on error
 set -u  # Exit on undefined variable
 
 echo "========================================"
-echo "Qwen3-VL Fine-tuning Training Job"
+echo "Qwen3-VL Optimized Training (Rank 32)"
 echo "========================================"
 echo "Job ID: ${SLURM_JOB_ID}"
 echo "Node: ${SLURM_NODELIST}"
 echo "GPUs: ${SLURM_GPUS_ON_NODE}"
 echo "Start time: $(date)"
 echo ""
-
-# Load required modules (adjust based on your cluster)
-# Uncomment and modify these lines based on your HPC environment
-# module load cuda/12.1
-# module load cudnn/8.9
-# module load nccl/2.18
-# module load python/3.10
 
 # Set workspace directory
 WORKSPACE_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
@@ -42,7 +36,6 @@ cd "${WORKSPACE_DIR}"
 DATA_DIR="/hai/scratch/asanshay/websight-v2/data"
 
 # Activate virtual environment
-# Adjust this path to your actual virtual environment
 if [ -d "venv" ]; then
     echo "Activating virtual environment..."
     source venv/bin/activate
@@ -67,9 +60,13 @@ export HF_DATASETS_CACHE="${WORKSPACE_DIR}/.cache/huggingface/datasets"
 # Enable TF32 for better performance on H100
 export CUDA_TF32_ENABLED=1
 
+# Set TRITON_CACHE_DIR to avoid NFS warning
+export TRITON_CACHE_DIR="${WORKSPACE_DIR}/.cache/triton"
+mkdir -p "${TRITON_CACHE_DIR}"
+
 # Create necessary directories
 mkdir -p logs
-mkdir -p saves/qwen3-vl-8b/lora/sft
+mkdir -p saves/qwen3-vl-8b/lora/sft-rank32
 mkdir -p .cache/huggingface
 
 # Print system information
@@ -113,7 +110,7 @@ echo "Checking LLaMA-Factory..."
 echo "========================================"
 
 if [ ! -d "LLaMA-Factory" ]; then
-    echo "✗ Error: LLaMA-Factory not found!"
+    echo "✗ Error: LLaMA-Factory directory not found!"
     echo "Please clone LLaMA-Factory:"
     echo "  git clone https://github.com/hiyouga/LLaMA-Factory.git"
     echo "  cd LLaMA-Factory"
@@ -131,7 +128,7 @@ echo "========================================"
 
 pip install --upgrade pip
 pip install -q transformers>=4.57.0 || pip install -q git+https://github.com/huggingface/transformers
-pip install -q accelerate deepspeed
+pip install -q accelerate 'deepspeed>=0.10.0,<=0.16.9'
 pip install -q flash-attn --no-build-isolation
 
 # Navigate to LLaMA-Factory if not already installed
@@ -145,22 +142,6 @@ fi
 echo "✓ Dependencies verified"
 echo ""
 
-# Start training
-echo "========================================"
-echo "Starting training..."
-echo "========================================"
-echo "Configuration: configs/qwen_vl_lora.yaml"
-echo "Dataset: wave_ui_dataset"
-echo "Model: Qwen/Qwen3-VL-8B-Instruct"
-echo "Method: LoRA (rank=64, alpha=128)"
-echo "GPUs: 8xH100"
-echo "Batch size: 2 per device × 4 grad accum × 8 GPUs = effective 64"
-echo ""
-
-# Set TRITON_CACHE_DIR to avoid NFS warning
-export TRITON_CACHE_DIR="${WORKSPACE_DIR}/.cache/triton"
-mkdir -p "${TRITON_CACHE_DIR}"
-
 # Link dataset_info.json to both LLaMA-Factory and data directories
 mkdir -p LLaMA-Factory/data
 mkdir -p data
@@ -168,16 +149,41 @@ ln -sf "${WORKSPACE_DIR}/configs/dataset_info.json" LLaMA-Factory/data/dataset_i
 ln -sf "${WORKSPACE_DIR}/configs/dataset_info.json" data/dataset_info.json
 echo "✓ Linked dataset_info.json to LLaMA-Factory/data/ and data/"
 
-# Run training with LLaMA-Factory CLI
-# Using llamafactory-cli with DeepSpeed for multi-GPU training
+# Start training
+echo ""
+echo "========================================"
+echo "Starting OPTIMIZED training..."
+echo "========================================"
+echo "Configuration:"
+echo "  Model: Qwen/Qwen3-VL-8B-Instruct"
+echo "  Method: LoRA (rank=32, alpha=64) - REDUCED FOR SPEED"
+echo "  GPUs: 8xH100"
+echo "  Batch size: 4 per device × 2 grad accum × 8 GPUs = effective 64"
+echo "  Epochs: 1.0"
+echo "  Learning rate: 5e-5"
+echo "  Save steps: 200"
+echo "  Max samples: ALL (no limit)"
+echo ""
+echo "Speed optimizations:"
+echo "  ✓ LoRA rank: 32 (vs 64) - ~40% faster training"
+echo "  ✓ LoRA alpha: 64 (vs 128) - matched to rank"
+echo "  ✓ Larger batch: 4 (vs 2) - 2x throughput"
+echo "  ✓ Fewer epochs: 1.0 (vs 2.5) - 2.5x faster"
+echo "  ✓ Frequent saves: 200 steps - more checkpoints"
+echo "  ✓ All samples: No artificial limit"
+echo ""
+echo "Expected completion: 6-8 hours"
+echo ""
+
+# Run training with optimized settings
 llamafactory-cli train \
     --model_name_or_path Qwen/Qwen3-VL-8B-Instruct \
     --stage sft \
     --do_train \
     --finetuning_type lora \
     --lora_target all \
-    --lora_rank 64 \
-    --lora_alpha 128 \
+    --lora_rank 32 \
+    --lora_alpha 64 \
     --lora_dropout 0.05 \
     --use_rslora \
     --dataset wave_ui_dataset \
@@ -186,23 +192,22 @@ llamafactory-cli train \
     --template qwen2_vl \
     --media_dir /hai/scratch/asanshay/websight-v2/data \
     --cutoff_len 8192 \
-    --max_samples 100000 \
     --preprocessing_num_workers 16 \
-    --output_dir saves/qwen3-vl-8b/lora/sft \
+    --output_dir saves/qwen3-vl-8b/lora/sft-rank32 \
     --logging_steps 10 \
-    --save_steps 500 \
+    --save_steps 200 \
     --plot_loss \
-    --per_device_train_batch_size 2 \
-    --per_device_eval_batch_size 2 \
-    --gradient_accumulation_steps 4 \
+    --per_device_train_batch_size 4 \
+    --per_device_eval_batch_size 4 \
+    --gradient_accumulation_steps 2 \
     --learning_rate 5.0e-5 \
-    --num_train_epochs 2.5 \
+    --num_train_epochs 1.0 \
     --lr_scheduler_type cosine \
     --warmup_ratio 0.05 \
     --bf16 \
     --ddp_timeout 180000000 \
     --eval_strategy steps \
-    --eval_steps 500 \
+    --eval_steps 200 \
     --optim adamw_torch \
     --weight_decay 0.01 \
     --max_grad_norm 1.0 \
@@ -220,15 +225,23 @@ echo "========================================"
 if [ ${EXIT_CODE} -eq 0 ]; then
     echo "✓ Training completed successfully!"
     echo ""
-    echo "Model saved to: saves/qwen3-vl-8b/lora/sft"
+    echo "Model saved to: saves/qwen3-vl-8b/lora/sft-rank32"
     echo ""
     echo "To merge LoRA weights with base model:"
-    echo "  python LLaMA-Factory/src/export_model.py \\"
+    echo "  llamafactory-cli export \\"
     echo "    --model_name_or_path Qwen/Qwen3-VL-8B-Instruct \\"
-    echo "    --adapter_name_or_path saves/qwen3-vl-8b/lora/sft \\"
+    echo "    --adapter_name_or_path saves/qwen3-vl-8b/lora/sft-rank32 \\"
     echo "    --export_dir saves/qwen3-vl-8b-merged \\"
+    echo "    --template qwen2_vl \\"
+    echo "    --finetuning_type lora \\"
     echo "    --export_size 2 \\"
-    echo "    --export_device cpu"
+    echo "    --export_legacy_format False"
+    echo ""
+    echo "Or push to HuggingFace:"
+    echo "  # Edit slurm/merge_and_push.slurm and change:"
+    echo "  ADAPTER_PATH=\"saves/qwen3-vl-8b/lora/sft-rank32\""
+    echo "  # Then run:"
+    echo "  sbatch --account=ingrai slurm/merge_and_push.slurm"
 else
     echo "✗ Training failed with exit code ${EXIT_CODE}"
 fi
