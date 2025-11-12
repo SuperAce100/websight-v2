@@ -26,6 +26,19 @@
       "user_tag": "user",
       "assistant_tag": "assistant"
     }
+  },
+  "wave_ui_test": {
+    "file_name": "wave_ui_test.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages",
+      "images": "images"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant"
+    }
   }
 }
-
