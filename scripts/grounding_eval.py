@@ -10,6 +10,7 @@ Ground truth bboxes are in original resolution and need to be normalized for com
 import json
 import re
 import argparse
+import math
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from collections import defaultdict
@@ -81,6 +82,38 @@ def point_in_bbox(point: Tuple[float, float], bbox: List[float]) -> bool:
     x_min, y_min, x_max, y_max = bbox
     
     return x_min <= x <= x_max and y_min <= y <= y_max
+
+
+def bbox_center(bbox: List[float]) -> Tuple[float, float]:
+    """
+    Calculate the center point of a bounding box.
+
+    Args:
+        bbox: [x_min, y_min, x_max, y_max]
+
+    Returns:
+        Tuple of (center_x, center_y) coordinates
+    """
+    x_min, y_min, x_max, y_max = bbox
+    center_x = (x_min + x_max) / 2.0
+    center_y = (y_min + y_max) / 2.0
+    return (center_x, center_y)
+
+
+def euclidean_distance(point1: Tuple[float, float], point2: Tuple[float, float]) -> float:
+    """
+    Calculate Euclidean distance between two points.
+
+    Args:
+        point1: (x1, y1) coordinates
+        point2: (x2, y2) coordinates
+
+    Returns:
+        Euclidean distance between the two points
+    """
+    x1, y1 = point1
+    x2, y2 = point2
+    return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
 
 def normalize_image_path(image_path: str) -> str:
@@ -246,7 +279,10 @@ def evaluate_grounding(
         "parse_errors": 0,
         "missing_gt": 0,
         "missing_pred": 0,
-        "details": []
+        "details": [],
+        "distances": [],  # Store distances for valid predictions
+        "within_10px": 0,  # Count of clicks within 10px of center
+        "within_20px": 0   # Count of clicks within 20px of center
     }
     
     # Find all images that have both ground truth and predictions
@@ -310,6 +346,17 @@ def evaluate_grounding(
         if is_correct:
             results["correct"] += 1
         
+        # Calculate distance from predicted click to center of bbox
+        bbox_center_coords = bbox_center(norm_bbox)
+        distance = euclidean_distance(coords, bbox_center_coords)
+        results["distances"].append(distance)
+        
+        # Count clicks within threshold distances
+        if distance <= 10:
+            results["within_10px"] += 1
+        if distance <= 20:
+            results["within_20px"] += 1
+        
         results["details"].append({
             "image_path": image_path,
             "id": gt_data["id"],
@@ -317,6 +364,8 @@ def evaluate_grounding(
             "predicted_coords": coords,
             "gt_bbox": bbox,
             "norm_gt_bbox": norm_bbox,
+            "bbox_center": bbox_center_coords,
+            "distance_to_center": distance,
             "resolution": resolution,
             "prediction": pred_text[:100] if pred_text else None,
         })
@@ -328,6 +377,48 @@ def evaluate_grounding(
     else:
         results["accuracy"] = 0.0
         results["parse_rate"] = 0.0
+    
+    # Calculate distance statistics
+    if results["distances"]:
+        distances = sorted(results["distances"])
+        mean = sum(distances) / len(distances)
+        n = len(distances)
+        if n % 2 == 0:
+            median = (distances[n // 2 - 1] + distances[n // 2]) / 2.0
+        else:
+            median = distances[n // 2]
+        
+        variance = sum((d - mean) ** 2 for d in distances) / len(distances)
+        std = math.sqrt(variance) if len(distances) > 1 else 0.0
+        
+        # Calculate percentages for threshold metrics
+        total_valid = len(distances)
+        within_10px_pct = (results["within_10px"] / total_valid) * 100 if total_valid > 0 else 0.0
+        within_20px_pct = (results["within_20px"] / total_valid) * 100 if total_valid > 0 else 0.0
+        
+        results["distance_stats"] = {
+            "mean": mean,
+            "median": median,
+            "min": min(distances),
+            "max": max(distances),
+            "std": std,
+            "within_10px_count": results["within_10px"],
+            "within_10px_percentage": within_10px_pct,
+            "within_20px_count": results["within_20px"],
+            "within_20px_percentage": within_20px_pct
+        }
+    else:
+        results["distance_stats"] = {
+            "mean": 0.0,
+            "median": 0.0,
+            "min": 0.0,
+            "max": 0.0,
+            "std": 0.0,
+            "within_10px_count": 0,
+            "within_10px_percentage": 0.0,
+            "within_20px_count": 0,
+            "within_20px_percentage": 0.0
+        }
     
     return results
 
@@ -344,6 +435,20 @@ def print_results(results: Dict, verbose: bool = False):
     print(f"Missing predictions: {results['missing_pred']}")
     print(f"\nAccuracy: {results['accuracy']:.4f} ({results['accuracy']*100:.2f}%)")
     print(f"Parse rate: {results['parse_rate']:.4f} ({results['parse_rate']*100:.2f}%)")
+    
+    # Print distance statistics
+    if results.get("distance_stats"):
+        stats = results["distance_stats"]
+        print(f"\nDistance to Bbox Center (Euclidean):")
+        print(f"  Mean: {stats['mean']:.2f} pixels")
+        print(f"  Median: {stats['median']:.2f} pixels")
+        print(f"  Min: {stats['min']:.2f} pixels")
+        print(f"  Max: {stats['max']:.2f} pixels")
+        print(f"  Std Dev: {stats['std']:.2f} pixels")
+        print(f"\nThreshold Metrics:")
+        print(f"  Within 10px: {stats['within_10px_count']} ({stats['within_10px_percentage']:.2f}%)")
+        print(f"  Within 20px: {stats['within_20px_count']} ({stats['within_20px_percentage']:.2f}%)")
+    
     print("="*80)
     
     if verbose and results["details"]:
@@ -356,6 +461,10 @@ def print_results(results: Dict, verbose: bool = False):
                 print(f"  Predicted: {detail['predicted_coords']}")
             if detail.get("norm_gt_bbox"):
                 print(f"  GT Bbox (normalized): {detail['norm_gt_bbox']}")
+            if detail.get("bbox_center"):
+                print(f"  Bbox Center: {detail['bbox_center']}")
+            if detail.get("distance_to_center") is not None:
+                print(f"  Distance to Center: {detail['distance_to_center']:.2f} pixels")
             print()
 
 
