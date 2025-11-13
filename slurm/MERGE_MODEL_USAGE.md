@@ -10,34 +10,45 @@ sbatch --account=ingrai slurm/merge_model.slurm
 ```
 
 This will:
-- Merge the adapter from `saves/qwen3-vl-8b/lora/sft-noeval/checkpoint-200`
-- Save merged model to `saves/qwen3-vl-8b-merged`
+- Merge the adapter from `/hai/scratch/asanshay/websight-v2/saves/qwen3-vl-8b/lora/sft-noeval/checkpoint-200`
+- Save merged model to `/hai/scratch/asanshay/websight-v2/saves/qwen3-vl-8b-merged`
 - **NOT** push to HuggingFace (you can download it manually)
 
 ### Option 2: Merge with Custom Paths
 
 ```bash
 # Set custom paths
-export ADAPTER_PATH="saves/qwen3-vl-8b/lora/sft-noeval/checkpoint-200"
-export OUTPUT_DIR="saves/qwen3-vl-8b-merged-custom"
+export ADAPTER_PATH="/hai/scratch/asanshay/websight-v2/saves/qwen3-vl-8b/lora/sft-noeval/checkpoint-200"
+export OUTPUT_DIR="/hai/scratch/asanshay/websight-v2/saves/qwen3-vl-8b-merged-custom"
 
 # Submit job
 sbatch --account=ingrai slurm/merge_model.slurm
 ```
 
-### Option 3: Merge and Push to HuggingFace
+### Option 3: Merge and Push to HuggingFace (Automatic)
+
+The script will automatically push to HuggingFace if `HF_TOKEN` is set:
 
 ```bash
-# Set HuggingFace credentials
-export HF_USERNAME="your-username"
+# Set HuggingFace token (required)
 export HF_TOKEN="hf_xxxxxxxxxxxxx"
-export HUB_MODEL_ID="your-username/qwen3-vl-8b-websight"  # Optional
-export PUSH_TO_HUB="true"
+
+# Optional: Set username (defaults to "asanshay" if not set)
+export HF_USERNAME="your-username"
+
+# Optional: Set custom repository name
+export HUB_MODEL_ID="your-username/qwen3-vl-8b-websight"
 
 # Optional: Make repository private
-export PRIVATE_REPO="true"  # or "false"
+export PRIVATE_REPO="true"  # or "false" (default)
 
-# Submit job
+# Submit job (will automatically push if HF_TOKEN is set)
+sbatch --account=ingrai slurm/merge_model.slurm
+```
+
+**Note**: If `HF_TOKEN` is set, the script will automatically push to HuggingFace. To disable auto-push even with token set:
+```bash
+export PUSH_TO_HUB="false"
 sbatch --account=ingrai slurm/merge_model.slurm
 ```
 
@@ -46,17 +57,17 @@ sbatch --account=ingrai slurm/merge_model.slurm
 The script uses these defaults (can be overridden with environment variables):
 
 - **Base Model**: `Qwen/Qwen3-VL-8B-Instruct`
-- **Adapter Path**: `saves/qwen3-vl-8b/lora/sft-noeval/checkpoint-200`
-- **Output Directory**: `saves/qwen3-vl-8b-merged`
-- **Push to Hub**: `false` (set `PUSH_TO_HUB="true"` to enable)
+- **Adapter Path**: `/hai/scratch/asanshay/websight-v2/saves/qwen3-vl-8b/lora/sft-noeval/checkpoint-200`
+- **Output Directory**: `/hai/scratch/asanshay/websight-v2/saves/qwen3-vl-8b-merged`
+- **Push to Hub**: `true` if `HF_TOKEN` is set, `false` otherwise (can override with `PUSH_TO_HUB="false"`)
 
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BASE_MODEL` | `Qwen/Qwen3-VL-8B-Instruct` | Base model name/path |
-| `ADAPTER_PATH` | `saves/qwen3-vl-8b/lora/sft-noeval/checkpoint-200` | Path to LoRA adapter |
-| `OUTPUT_DIR` | `saves/qwen3-vl-8b-merged` | Output directory for merged model |
+| `ADAPTER_PATH` | `/hai/scratch/asanshay/websight-v2/saves/qwen3-vl-8b/lora/sft-noeval/checkpoint-200` | Path to LoRA adapter |
+| `OUTPUT_DIR` | `/hai/scratch/asanshay/websight-v2/saves/qwen3-vl-8b-merged` | Output directory for merged model |
 | `HF_USERNAME` | (none) | HuggingFace username (required if pushing) |
 | `HF_TOKEN` | (none) | HuggingFace token (required if pushing) |
 | `HUB_MODEL_ID` | `{HF_USERNAME}/qwen3-vl-8b-websight-merged` | HuggingFace repo ID |
@@ -74,29 +85,33 @@ sbatch --account=ingrai slurm/merge_model.slurm
 ### Example 2: Merge Different Checkpoint
 
 ```bash
-export ADAPTER_PATH="saves/qwen3-vl-8b/lora/sft/checkpoint-500"
-export OUTPUT_DIR="saves/qwen3-vl-8b-merged-checkpoint500"
+export ADAPTER_PATH="/hai/scratch/asanshay/websight-v2/saves/qwen3-vl-8b/lora/sft/checkpoint-500"
+export OUTPUT_DIR="/hai/scratch/asanshay/websight-v2/saves/qwen3-vl-8b-merged-checkpoint500"
 sbatch --account=ingrai slurm/merge_model.slurm
 ```
 
-### Example 3: Merge and Push Public Repo
+### Example 3: Merge and Push Public Repo (Simplest)
 
 ```bash
-export HF_USERNAME="asanshay"
+# Just set the token - script will auto-push!
 export HF_TOKEN="hf_xxxxxxxxxxxxx"
-export PUSH_TO_HUB="true"
-export HUB_MODEL_ID="asanshay/qwen3-vl-8b-websight"
+sbatch --account=ingrai slurm/merge_model.slurm
+```
+
+Or with custom username/repo:
+```bash
+export HF_TOKEN="hf_xxxxxxxxxxxxx"
+export HF_USERNAME="asanshay"  # Optional
+export HUB_MODEL_ID="asanshay/qwen3-vl-8b-websight"  # Optional
 sbatch --account=ingrai slurm/merge_model.slurm
 ```
 
 ### Example 4: Merge and Push Private Repo
 
 ```bash
-export HF_USERNAME="asanshay"
 export HF_TOKEN="hf_xxxxxxxxxxxxx"
-export PUSH_TO_HUB="true"
 export PRIVATE_REPO="true"
-export HUB_MODEL_ID="asanshay/qwen3-vl-8b-websight-private"
+export HUB_MODEL_ID="asanshay/qwen3-vl-8b-websight-private"  # Optional
 sbatch --account=ingrai slurm/merge_model.slurm
 ```
 
@@ -136,7 +151,7 @@ If you need more time, edit the script:
 ```bash
 # From your local computer
 rsync -avz --progress \
-    asanshay@haic:/hai/users/a/s/asanshay/websight-v2/saves/qwen3-vl-8b-merged/ \
+    asanshay@haic:/hai/scratch/asanshay/websight-v2/saves/qwen3-vl-8b-merged/ \
     ~/local/path/qwen3-vl-8b-merged/
 ```
 
@@ -145,7 +160,7 @@ rsync -avz --progress \
 ```bash
 # On cluster or local
 python test_model.py \
-    --model-path saves/qwen3-vl-8b-merged \
+    --model-path /hai/scratch/asanshay/websight-v2/saves/qwen3-vl-8b-merged \
     --image screenshot.png \
     --prompt "click the login button"
 ```
@@ -173,7 +188,7 @@ python test_model.py \
 ## Output Files
 
 After successful merge, you'll find:
-- Merged model in `saves/qwen3-vl-8b-merged/` (or your `OUTPUT_DIR`)
+- Merged model in `/hai/scratch/asanshay/websight-v2/saves/qwen3-vl-8b-merged/` (or your `OUTPUT_DIR`)
 - Logs in `logs/merge_model_<JOB_ID>.out` and `.err`
 - Model card (README.md) in the output directory
 

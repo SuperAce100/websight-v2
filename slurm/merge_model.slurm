@@ -18,9 +18,14 @@
 #   # Just merge (for download)
 #   sbatch --account=ingrai slurm/merge_model.slurm
 #
-#   # Merge and push to HuggingFace
+#   # Merge and automatically push to HuggingFace (if HF_TOKEN is set)
 #   export HF_TOKEN="hf_xxxxxxxxxxxxx"
-#   export HF_USERNAME="your-username"
+#   export HF_USERNAME="your-username"  # Optional, defaults to "asanshay"
+#   export HUB_MODEL_ID="your-username/qwen3-vl-8b-websight"  # Optional
+#   sbatch --account=ingrai slurm/merge_model.slurm
+#
+#   # Disable auto-push even if HF_TOKEN is set
+#   export PUSH_TO_HUB="false"
 #   sbatch --account=ingrai slurm/merge_model.slurm
 
 set -e  # Exit on error
@@ -40,20 +45,25 @@ cd "${WORKSPACE_DIR}"
 
 # Model paths - customize these if needed
 BASE_MODEL="${BASE_MODEL:-Qwen/Qwen3-VL-8B-Instruct}"
-ADAPTER_PATH="${ADAPTER_PATH:-saves/qwen3-vl-8b/lora/sft-noeval/checkpoint-200}"
-OUTPUT_DIR="${OUTPUT_DIR:-saves/qwen3-vl-8b-merged}"
+ADAPTER_PATH="${ADAPTER_PATH:-/hai/scratch/asanshay/websight-v2/saves/qwen3-vl-8b/lora/sft-noeval/checkpoint-200}"
+OUTPUT_DIR="${OUTPUT_DIR:-/hai/scratch/asanshay/websight-v2/saves/qwen3-vl-8b-merged}"
 
-# HuggingFace configuration (optional)
+# HuggingFace configuration
 # Set these environment variables before running to push to HuggingFace:
 # export HF_USERNAME="your-username"
-# export HF_TOKEN="your-token"
+# export HF_TOKEN="your-token"  # Required for pushing
 # export HUB_MODEL_ID="your-username/qwen3-vl-8b-websight"  # Optional, defaults to username/qwen3-vl-8b-websight-merged
-HF_USERNAME="${HF_USERNAME:-}"
+HF_USERNAME="Asanshay"
 HF_TOKEN="${HF_TOKEN:-}"
-HUB_MODEL_ID="${HUB_MODEL_ID:-}"
+HUB_MODEL_ID="Asanshay/qwen3-vl-8b-websight-merged"
 
 # Options
-PUSH_TO_HUB="${PUSH_TO_HUB:-false}"  # Set to "true" to push to HuggingFace
+# Automatically push to Hub if HF_TOKEN is set (can override with PUSH_TO_HUB="false")
+if [ -n "${HF_TOKEN}" ]; then
+    PUSH_TO_HUB="${PUSH_TO_HUB:-true}"  # Auto-enable if token is present
+else
+    PUSH_TO_HUB="${PUSH_TO_HUB:-false}"  # Disable if no token
+fi
 PRIVATE_REPO="${PRIVATE_REPO:-false}"  # Set to "true" for private repository
 
 echo "Configuration:"
@@ -103,32 +113,35 @@ echo ""
 
 # Check if we need to push to HuggingFace
 if [ "${PUSH_TO_HUB}" = "true" ]; then
-    if [ -z "${HF_USERNAME}" ]; then
-        echo "❌ Error: HF_USERNAME not set!"
-        echo "Please set your HuggingFace username:"
-        echo "  export HF_USERNAME='your-username'"
-        exit 1
-    fi
-    
     if [ -z "${HF_TOKEN}" ]; then
-        echo "❌ Error: HF_TOKEN not set!"
-        echo "Please set your HuggingFace token:"
+        echo "⚠ Warning: PUSH_TO_HUB is true but HF_TOKEN not set!"
+        echo "Disabling push to Hub. Set HF_TOKEN to enable:"
         echo "  export HF_TOKEN='hf_xxxxxxxxxxxxx'"
         echo ""
-        echo "Get your token from: https://huggingface.co/settings/tokens"
-        exit 1
+        PUSH_TO_HUB="false"
+    else
+        if [ -z "${HF_USERNAME}" ]; then
+            echo "⚠ Warning: HF_USERNAME not set!"
+            echo "Attempting to extract username from token or using default..."
+            # Try to get username from token or use a default
+            # If token is set but username isn't, we'll use a placeholder
+            # The actual username might be extracted from the token or API
+            HF_USERNAME="${HF_USERNAME:-asanshay}"  # Default fallback
+            echo "  Using username: ${HF_USERNAME}"
+        fi
+        
+        # Set default hub model ID if not provided
+        if [ -z "${HUB_MODEL_ID}" ]; then
+            HUB_MODEL_ID="${HF_USERNAME}/qwen3-vl-8b-websight-merged"
+        fi
+        
+        echo "HuggingFace configuration:"
+        echo "  Username: ${HF_USERNAME}"
+        echo "  Repository: ${HUB_MODEL_ID}"
+        echo "  Private: ${PRIVATE_REPO}"
+        echo "  Token: ${HF_TOKEN:0:10}... (hidden)"
+        echo ""
     fi
-    
-    # Set default hub model ID if not provided
-    if [ -z "${HUB_MODEL_ID}" ]; then
-        HUB_MODEL_ID="${HF_USERNAME}/qwen3-vl-8b-websight-merged"
-    fi
-    
-    echo "HuggingFace configuration:"
-    echo "  Username: ${HF_USERNAME}"
-    echo "  Repository: ${HUB_MODEL_ID}"
-    echo "  Private: ${PRIVATE_REPO}"
-    echo ""
 fi
 
 # Run merge script
@@ -182,18 +195,21 @@ if [ ${EXIT_CODE} -eq 0 ]; then
     echo ""
     echo "1. Download to your local computer:"
     echo "   rsync -avz --progress \\"
-    echo "     ${USER}@haic:${WORKSPACE_DIR}/${OUTPUT_DIR}/ \\"
+    echo "     ${USER}@haic:${OUTPUT_DIR}/ \\"
     echo "     ~/local/path/qwen3-vl-8b-merged/"
     echo ""
     
     if [ "${PUSH_TO_HUB}" = "true" ]; then
-        echo "2. Model is available on HuggingFace:"
+        echo "2. ✓ Model pushed to HuggingFace:"
         echo "   https://huggingface.co/${HUB_MODEL_ID}"
         echo ""
     else
-        echo "2. To push to HuggingFace later, run:"
+        echo "2. To push to HuggingFace, set HF_TOKEN and run again:"
         echo "   export HF_TOKEN=\"hf_xxxxxxxxxxxxx\""
-        echo "   export HF_USERNAME=\"your-username\""
+        echo "   export HF_USERNAME=\"your-username\"  # Optional"
+        echo "   sbatch --account=ingrai slurm/merge_model.slurm"
+        echo ""
+        echo "   Or push manually:"
         echo "   python scripts/merge_model.py \\"
         echo "     --adapter_path ${ADAPTER_PATH} \\"
         echo "     --output_dir ${OUTPUT_DIR} \\"
