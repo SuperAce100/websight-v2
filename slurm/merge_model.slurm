@@ -45,7 +45,7 @@ cd "${WORKSPACE_DIR}"
 
 # Model paths - customize these if needed
 BASE_MODEL="${BASE_MODEL:-Qwen/Qwen3-VL-8B-Instruct}"
-ADAPTER_PATH="${ADAPTER_PATH:-/hai/scratch/asanshay/websight-v2/saves/qwen3-vl-8b/lora/sft-noeval/checkpoint-200}"
+ADAPTER_PATH="${ADAPTER_PATH:-/hai/users/a/s/asanshay/websight-v2/saves/qwen3-vl-8b/lora/sft-noeval/checkpoint-200}"
 OUTPUT_DIR="${OUTPUT_DIR:-/hai/scratch/asanshay/websight-v2/saves/qwen3-vl-8b-merged}"
 
 # HuggingFace configuration
