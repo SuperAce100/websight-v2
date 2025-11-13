@@ -87,10 +87,23 @@ fi
 # Set environment variables
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export CUDA_VISIBLE_DEVICES=0
-export HF_HOME="${WORKSPACE_DIR}/.cache/huggingface"
-export HF_DATASETS_CACHE="${WORKSPACE_DIR}/.cache/huggingface/datasets"
+
+# Use scratch directory for all caches (1TB limit vs 50GB in home)
+SCRATCH_DIR="/hai/scratch/asanshay/websight-v2"
+export HF_HOME="${SCRATCH_DIR}/.cache/huggingface"
+export HF_DATASETS_CACHE="${SCRATCH_DIR}/.cache/huggingface/datasets"
+export TRANSFORMERS_CACHE="${SCRATCH_DIR}/.cache/huggingface/transformers"
+export HF_DATASETS_OFFLINE=0
+
+# Create cache directories
 mkdir -p "${HF_HOME}"
+mkdir -p "${SCRATCH_DIR}/logs"
 mkdir -p "${WORKSPACE_DIR}/logs"
+
+echo "Cache directories:"
+echo "  HF_HOME: ${HF_HOME}"
+echo "  TRANSFORMERS_CACHE: ${TRANSFORMERS_CACHE}"
+echo ""
 
 # Verify adapter exists
 echo "========================================"

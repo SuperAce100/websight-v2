@@ -202,11 +202,19 @@ def merge_model(
     if use_llamafactory:
         try:
             import subprocess
+            import os
             print("Using LLaMA-Factory to merge model...")
             print("This may take 10-30 minutes depending on model size...")
             
             # Create output directory
             output_path_obj.mkdir(parents=True, exist_ok=True)
+            
+            # Set environment variables for cache directories (use scratch)
+            env = os.environ.copy()
+            scratch_dir = "/hai/scratch/asanshay/websight-v2"
+            env["HF_HOME"] = f"{scratch_dir}/.cache/huggingface"
+            env["TRANSFORMERS_CACHE"] = f"{scratch_dir}/.cache/huggingface/transformers"
+            env["HF_DATASETS_CACHE"] = f"{scratch_dir}/.cache/huggingface/datasets"
             
             # Run llamafactory-cli export
             cmd = [
@@ -220,8 +228,13 @@ def merge_model(
                 "--export_legacy_format", "False"
             ]
             
+            print(f"Cache directories:")
+            print(f"  HF_HOME: {env.get('HF_HOME')}")
+            print(f"  TRANSFORMERS_CACHE: {env.get('TRANSFORMERS_CACHE')}")
+            print()
+            
             print(f"Running: {' '.join(cmd)}")
-            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=env)
             
             print("✓ Model merged successfully using LLaMA-Factory")
             return True
@@ -238,8 +251,20 @@ def merge_model(
     
     # Fallback: Use Python API (slower but more compatible)
     if not use_llamafactory:
+        import os
         print("Using Python API to merge model...")
         print("This may take 20-40 minutes depending on model size...")
+        
+        # Set cache directories to scratch
+        scratch_dir = "/hai/scratch/asanshay/websight-v2"
+        os.environ["HF_HOME"] = f"{scratch_dir}/.cache/huggingface"
+        os.environ["TRANSFORMERS_CACHE"] = f"{scratch_dir}/.cache/huggingface/transformers"
+        os.environ["HF_DATASETS_CACHE"] = f"{scratch_dir}/.cache/huggingface/datasets"
+        
+        print(f"Cache directories:")
+        print(f"  HF_HOME: {os.environ.get('HF_HOME')}")
+        print(f"  TRANSFORMERS_CACHE: {os.environ.get('TRANSFORMERS_CACHE')}")
+        print()
         
         try:
             # Load base model
@@ -248,7 +273,8 @@ def merge_model(
                 base_model,
                 torch_dtype=torch.bfloat16,
                 device_map=device,
-                trust_remote_code=True
+                trust_remote_code=True,
+                cache_dir=os.environ.get("TRANSFORMERS_CACHE")
             )
             print("✓ Base model loaded")
             
@@ -277,7 +303,11 @@ def merge_model(
             
             # Save processor/tokenizer
             print("Step 5: Saving processor and tokenizer...")
-            processor = AutoProcessor.from_pretrained(base_model, trust_remote_code=True)
+            processor = AutoProcessor.from_pretrained(
+                base_model,
+                trust_remote_code=True,
+                cache_dir=os.environ.get("TRANSFORMERS_CACHE")
+            )
             processor.save_pretrained(str(output_path_obj))
             
             print("✓ Merged model saved successfully")
