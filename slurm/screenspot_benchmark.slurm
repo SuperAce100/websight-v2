@@ -46,7 +46,7 @@ export HF_DATASETS_CACHE="${HF_HOME}/datasets"
 # Hardcoded configuration (edit as needed)
 MODEL_PATH="Asanshay/websight-v2-grounded"
 ADAPTER_PATH=""
-DATA_DIR="/hai/scratch/asanshay/screenspot-pro"
+DATA_DIR="/hai/users/a/s/asanshay/websight-v2/screenspot-pro"
 RESULTS_DIR="/hai/scratch/asanshay/screenspot-pro/results"
 EXTRA_ARGS=""
 
