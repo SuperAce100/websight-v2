@@ -57,6 +57,37 @@ def load_model(
     return model, processor
 
 
+def render_messages(processor, messages: List[Dict]) -> str:
+    """
+    Convert structured messages into a single prompt string compatible with processors
+    that do not accept the `messages` kwarg.
+    """
+    if hasattr(processor, "apply_chat_template"):
+        try:
+            return processor.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+        except Exception:
+            pass
+
+    rendered: List[str] = []
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content")
+        if isinstance(content, str):
+            rendered.append(f"{role}: {content}")
+        elif isinstance(content, list):
+            # Some processors (OpenAI-style) use list[{type,text}]
+            text_chunks = []
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "text":
+                    text_chunks.append(str(part.get("text", "")))
+            rendered.append(f"{role}: {' '.join(text_chunks)}")
+    return "\n".join(rendered)
+
+
 def _iter_records(records: List[Dict], limit: Optional[int]) -> List[Dict]:
     if limit is None:
         return records
@@ -100,18 +131,12 @@ def run_inference(
                 continue
 
             try:
-                try:
-                    inputs = processor(
-                        messages=messages,
-                        images=image,
-                        return_tensors="pt",
-                    ).to(device)
-                except TypeError:
-                    inputs = processor(
-                        text=messages,
-                        images=image,
-                        return_tensors="pt",
-                    ).to(device)
+                rendered_prompt = render_messages(processor, messages)
+                inputs = processor(
+                    text=rendered_prompt,
+                    images=image,
+                    return_tensors="pt",
+                ).to(device)
             except Exception as exc:
                 print(f"[WARN] Failed to tokenize sample {record.get('sample_id')}: {exc}")
                 failures += 1
