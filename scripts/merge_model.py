@@ -209,12 +209,22 @@ def merge_model(
             # Create output directory
             output_path_obj.mkdir(parents=True, exist_ok=True)
             
-            # Set environment variables for cache directories (use scratch)
+            # Set environment variables for cache directories
+            import pathlib
             env = os.environ.copy()
+            home_dir = pathlib.Path.home()
             scratch_dir = "/hai/scratch/asanshay/websight-v2"
-            env["HF_HOME"] = f"{scratch_dir}/.cache/huggingface"
-            env["TRANSFORMERS_CACHE"] = f"{scratch_dir}/.cache/huggingface/transformers"
-            env["HF_DATASETS_CACHE"] = f"{scratch_dir}/.cache/huggingface/datasets"
+            
+            # Check if cluster path exists, otherwise use local cache
+            if os.path.exists("/hai"):
+                cache_base = f"{scratch_dir}/.cache/huggingface"
+            else:
+                # Use local cache directory
+                cache_base = str(home_dir / ".cache" / "huggingface")
+            
+            env["HF_HOME"] = cache_base
+            env["TRANSFORMERS_CACHE"] = f"{cache_base}/transformers"
+            env["HF_DATASETS_CACHE"] = f"{cache_base}/datasets"
             
             # Run llamafactory-cli export
             cmd = [
@@ -255,11 +265,21 @@ def merge_model(
         print("Using Python API to merge model...")
         print("This may take 20-40 minutes depending on model size...")
         
-        # Set cache directories to scratch
+        # Set cache directories - use local cache if cluster path doesn't exist
+        import pathlib
+        home_dir = pathlib.Path.home()
         scratch_dir = "/hai/scratch/asanshay/websight-v2"
-        os.environ["HF_HOME"] = f"{scratch_dir}/.cache/huggingface"
-        os.environ["TRANSFORMERS_CACHE"] = f"{scratch_dir}/.cache/huggingface/transformers"
-        os.environ["HF_DATASETS_CACHE"] = f"{scratch_dir}/.cache/huggingface/datasets"
+        
+        # Check if cluster path exists, otherwise use local cache
+        if os.path.exists("/hai"):
+            cache_base = f"{scratch_dir}/.cache/huggingface"
+        else:
+            # Use local cache directory
+            cache_base = str(home_dir / ".cache" / "huggingface")
+        
+        os.environ["HF_HOME"] = cache_base
+        os.environ["TRANSFORMERS_CACHE"] = f"{cache_base}/transformers"
+        os.environ["HF_DATASETS_CACHE"] = f"{cache_base}/datasets"
         
         print(f"Cache directories:")
         print(f"  HF_HOME: {os.environ.get('HF_HOME')}")

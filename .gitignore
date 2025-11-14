@@ -11,3 +11,4 @@ wheels/
 AgentNet/
 .env
 wave-ui/
+ckpts/
