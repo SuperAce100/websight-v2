@@ -149,6 +149,7 @@ def load_model(
     # Set to evaluation mode
     model.eval()
     print("  ✓ Model loaded and set to eval mode")
+    print()
     
     return model, processor
 
@@ -183,6 +184,8 @@ def run_inference(
     print(f"  Max new tokens: {max_new_tokens}")
     if limit:
         print(f"  Limit: {limit} samples")
+    print()
+    print("Starting inference... (first sample may take 10-20 seconds)")
     print()
     
     output_path = Path(output_file)
@@ -348,7 +351,7 @@ def run_inference(
                 print(f"  [{idx}/{total_to_process}] "
                       f"Success: {successful}, Failed: {failed} | "
                       f"Accuracy: {correct}/{evaluated} ({accuracy:.2f}%) | "
-                      f"Rate: {rate:.2f} samples/s")
+                      f"Rate: {rate:.2f} samples/s", flush=True)
     
     # Final summary
     elapsed = (datetime.now() - start_time).total_seconds()
