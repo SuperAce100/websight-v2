@@ -214,9 +214,20 @@ def run_inference(
                 continue
             
             # Load image
-            full_image_path = os.path.join(media_dir, image_path)
+            # Handle both relative paths (images/000000.png) and direct paths (000000.png)
+            if image_path.startswith("images/"):
+                # Strip "images/" prefix since media_dir already points to images directory
+                image_filename = image_path.replace("images/", "", 1)
+                full_image_path = os.path.join(media_dir, image_filename)
+            else:
+                full_image_path = os.path.join(media_dir, image_path)
+            
             if not os.path.exists(full_image_path):
-                print(f"Warning: Image not found: {full_image_path}")
+                # Debug: print first few failures
+                if failed < 3:
+                    print(f"Warning: Image not found: {full_image_path}")
+                    print(f"  Media dir: {media_dir}")
+                    print(f"  Image path from record: {image_path}")
                 failed += 1
                 continue
             
