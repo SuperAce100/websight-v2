@@ -2,7 +2,7 @@
 #SBATCH --job-name=screenspot_benchmark
 #SBATCH --account=ingrai
 #SBATCH --partition=hai
-#SBATCH --nodes=1
+#SBATCH --nodes=147
 #SBATCH --ntasks-per-node=1
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
@@ -49,6 +49,8 @@ ADAPTER_PATH=""
 DATA_DIR="/hai/users/a/s/asanshay/websight-v2/screenspot_pro"
 RAW_DIR="${DATA_DIR}/raw"
 RESULTS_DIR="${DATA_DIR}/results"
+SUBSET_COUNT="${SUBSET_COUNT:-47}"
+SUBSET_SEED="${SUBSET_SEED:-${SLURM_JOB_ID:-0}}"
 EXTRA_ARGS=""
 
 mkdir -p "${RESULTS_DIR}"
@@ -82,6 +84,8 @@ python scripts/run_screenspot_benchmark.py \
     --predictions "${PRED_FILE}" \
     --device cuda \
     --max-new-tokens 320 \
+    --subset-count "${SUBSET_COUNT}" \
+    --subset-seed "${SUBSET_SEED}" \
     ${ADAPTER_PATH:+--adapter-path "${ADAPTER_PATH}"} \
     ${EXTRA_ARGS}
 

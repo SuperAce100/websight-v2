@@ -11,8 +11,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 from datetime import datetime
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 from typing import Dict, List, Optional, Tuple
 
 import torch
@@ -242,6 +244,18 @@ def parse_args() -> argparse.Namespace:
         default=320,
         help="Generation max_new_tokens (default: 320).",
     )
+    parser.add_argument(
+        "--subset-count",
+        type=int,
+        default=None,
+        help="Randomly select this many samples before inference.",
+    )
+    parser.add_argument(
+        "--subset-seed",
+        type=int,
+        default=None,
+        help="Seed for random subset selection (default: random module default).",
+    )
     return parser.parse_args()
 
 
@@ -252,6 +266,19 @@ def main() -> int:
         output_dir=args.output_dir,
         limit=args.dataset_limit,
     )
+
+    if args.subset_count is not None:
+        if args.subset_count > len(records):
+            raise ValueError(
+                f"subset-count ({args.subset_count}) exceeds dataset size ({len(records)})"
+            )
+        rng = random.Random(args.subset_seed)
+        chosen_indices = sorted(rng.sample(range(len(records)), args.subset_count))
+        records = [records[i] for i in chosen_indices]
+        print(
+            f"Random subset: kept {len(records)} samples "
+            f"(seed={args.subset_seed if args.subset_seed is not None else 'system'})"
+        )
 
     if args.limit:
         records = _iter_records(records, args.limit)
