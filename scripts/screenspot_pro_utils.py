@@ -1,295 +1,298 @@
 #!/usr/bin/env python3
 """
-Shared utilities for ScreenSpot-Pro dataset preparation.
+Utility helpers for preparing the ScreenSpot-Pro benchmark dataset.
 
-This module provides functions to download and transform the ScreenSpot-Pro dataset
-from HuggingFace, preserving all metadata including bounding boxes for evaluation.
+This module centralizes the logic for:
+  * Downloading the raw dataset snapshot from HuggingFace
+  * Copying images into a flat local folder
+  * Converting annotations into ShareGPT-style JSONL (messages + bbox metadata)
+  * Loading cached records when they already exist on disk
+
+Both the benchmark runner and standalone prep scripts import these helpers to
+avoid code duplication (the same logic previously lived inside
+`scripts/benchmark_screenspot_openrouter.py`).
 """
 
+from __future__ import annotations
+
 import json
+import os
 import shutil
 import time
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
+
 from tqdm import tqdm
 
+try:
+    from huggingface_hub import snapshot_download
+except ImportError as exc:  # pragma: no cover - handled at runtime
+    raise ImportError(
+        "huggingface_hub is required. Install with `pip install huggingface-hub`."
+    ) from exc
 
-def download_screenspot_pro(
-    output_dir: str = "screenspot_pro",
-    images_dir: str = None,
-    max_retries: int = 5,
-    retry_delay: int = 60
+DEFAULT_SYSTEM_PROMPT = (
+    "You are an expert in using electronic devices and interacting with "
+    "graphic interfaces. You should not call any external tools."
+)
+
+
+@dataclass(frozen=True)
+class ScreenSpotPaths:
+    """Resolved paths that scripts may reuse."""
+
+    root: Path
+    images: Path
+    jsonl: Path
+    raw: Path
+
+
+def _resolve_paths(output_dir: os.PathLike[str] | str) -> ScreenSpotPaths:
+    root = Path(output_dir).expanduser().resolve()
+    images = root / "images"
+    jsonl_path = root / "data.jsonl"
+    raw_dir = root / "raw"
+    return ScreenSpotPaths(root=root, images=images, jsonl=jsonl_path, raw=raw_dir)
+
+
+def dataset_available(output_dir: os.PathLike[str] | str) -> bool:
+    """Return True when `data.jsonl` already exists with at least one record."""
+    paths = _resolve_paths(output_dir)
+    return paths.jsonl.exists() and paths.jsonl.stat().st_size > 0
+
+
+def load_cached_records(output_dir: os.PathLike[str] | str) -> List[Dict]:
+    """Load cached ScreenSpot-Pro records if they have already been prepared."""
+    paths = _resolve_paths(output_dir)
+    if not paths.jsonl.exists():
+        raise FileNotFoundError(f"Dataset not prepared yet: {paths.jsonl}")
+
+    records: List[Dict] = []
+    with paths.jsonl.open("r", encoding="utf-8") as fh:
+        for line in fh:
+            stripped = line.strip()
+            if stripped:
+                records.append(json.loads(stripped))
+
+    return records
+
+
+def _gather_annotations(annotations_dir: Path) -> List[Dict]:
+    annotation_files = sorted(annotations_dir.glob("*.json"))
+    if not annotation_files:
+        raise FileNotFoundError(
+            f"No annotation JSON files found under {annotations_dir}"
+        )
+
+    entries: List[Dict] = []
+    for ann_file in annotation_files:
+        with ann_file.open("r", encoding="utf-8") as fh:
+            try:
+                payload = json.load(fh)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Failed to parse {ann_file}") from exc
+
+        if isinstance(payload, list):
+            entries.extend(payload)
+        elif isinstance(payload, dict):
+            for key in ("annotations", "data", "samples", "items"):
+                value = payload.get(key)
+                if isinstance(value, list):
+                    entries.extend(value)
+                    break
+            else:
+                # treat dict as single annotation
+                entries.append(payload)
+        else:
+            raise ValueError(f"Unsupported annotation format in {ann_file}")
+
+    if not entries:
+        raise ValueError("Annotation files were empty.")
+
+    return entries
+
+
+def _copy_image(source: Path, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, destination)
+
+
+def _format_user_text(
+    instruction: str, width: Optional[int], height: Optional[int]
+) -> str:
+    size_line = ""
+    if width and height:
+        size_line = f"Image size: {width}x{height} (width x height).\n"
+
+    return (
+        f"Query: {instruction}\n"
+        f"{size_line}"
+        "Return coordinates in ORIGINAL pixels of the image shown.\n"
+        "Output only the coordinate of one point in your response as pyautogui commands.\n"
+        "Format: pyautogui.click(x, y)\n"
+    )
+
+
+def prepare_screenspot_pro(
+    output_dir: os.PathLike[str] | str = "screenspot_pro",
+    refresh: bool = False,
+    limit: Optional[int] = None,
 ) -> Tuple[List[Dict], str]:
     """
-    Download ScreenSpot-Pro dataset from HuggingFace and transform to proper format.
-    
-    The dataset structure on HuggingFace:
-    - annotations/ folder with JSON files containing annotation entries
-    - images/ folder with subdirectories (e.g., blender_windows/) containing images
-    
-    Each annotation entry contains:
-    - img_filename: path to image (e.g., "blender_windows/screenshot_2024-12-02_13-33-12.png")
-    - bbox: bounding box coordinates [x1, y1, x2, y2]
-    - instruction: task instruction text
-    - Other metadata: id, application, platform, img_size, ui_type, group, etc.
-    
+    Download + transform the ScreenSpot-Pro dataset if needed.
+
     Args:
-        output_dir: Directory to save processed dataset (for data.jsonl)
-        images_dir: Directory to save images (default: output_dir/images)
-        max_retries: Maximum number of retry attempts for rate limiting
-        retry_delay: Initial delay in seconds between retries (exponential backoff)
-    
+        output_dir: Directory where the processed dataset should live.
+        refresh: When True, re-download/reprocess even if cached data exist.
+        limit: Optional cap on number of processed samples (debugging).
+
     Returns:
-        Tuple of (records list, images directory path)
+        (records, output_dir_str)
     """
-    try:
-        from huggingface_hub import snapshot_download
-    except ImportError:
-        raise ImportError(
-            "Please install huggingface_hub: pip install huggingface-hub"
+
+    paths = _resolve_paths(output_dir)
+    paths.root.mkdir(parents=True, exist_ok=True)
+    paths.images.mkdir(parents=True, exist_ok=True)
+    paths.raw.mkdir(parents=True, exist_ok=True)
+
+    if dataset_available(paths.root) and not refresh:
+        return load_cached_records(paths.root), str(paths.root)
+
+    print("Downloading ScreenSpot-Pro snapshot from HuggingFace...")
+    snapshot_path = Path(
+        snapshot_download(
+            repo_id="likaixin/ScreenSpot-Pro",
+            repo_type="dataset",
+            local_dir=paths.raw,
+            local_dir_use_symlinks=False,
+            allow_patterns=(
+                "annotations/*.json",
+                "images/**/*.png",
+                "images/**/*.jpg",
+                "README.md",
+                "LICENSE.md",
+            ),
         )
-    
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
-    
-    # Use custom images directory if provided, otherwise default to output_dir/images
-    if images_dir is None:
-        images_path = output_path / "images"
-    else:
-        images_path = Path(images_dir)
-    
-    images_path.mkdir(parents=True, exist_ok=True)
-    print(f"Images will be saved to: {images_path}")
-    
-    # Download dataset from HuggingFace
-    raw_dir = output_path / "raw"
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    
-    print("Downloading ScreenSpot-Pro dataset from HuggingFace...")
-    print("(Will use cache if already downloaded)")
-    
-    # Retry logic for rate limiting with exponential backoff
-    snapshot_path = None
-    for attempt in range(max_retries):
-        try:
-            snapshot_path = Path(
-                snapshot_download(
-                    repo_id="likaixin/ScreenSpot-Pro",
-                    repo_type="dataset",
-                    local_dir=raw_dir,
-                    local_dir_use_symlinks=False,
-                    allow_patterns=(
-                        "annotations/*.json",
-                        "images/**/*.png",
-                        "images/**/*.jpg",
-                        "README.md",
-                        "LICENSE.md"
-                    ),
-                )
-            ).expanduser().resolve()
-            break  # Success, exit retry loop
-        except Exception as e:
-            error_str = str(e)
-            if "429" in error_str or "rate limit" in error_str.lower() or "Too Many Requests" in error_str:
-                if attempt < max_retries - 1:
-                    wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
-                    print(
-                        f"\n⚠️  Rate limited. Waiting {wait_time}s before retry "
-                        f"(attempt {attempt + 1}/{max_retries})..."
-                    )
-                    print("   Tip: Make sure you're logged in with 'huggingface-cli login'")
-                    time.sleep(wait_time)
-                    continue
-                else:
-                    raise Exception(
-                        f"Rate limit exceeded after {max_retries} attempts. "
-                        "Please wait a few minutes or ensure you're logged in with "
-                        "'huggingface-cli login'"
-                    )
-            else:
-                # Different error, re-raise
-                raise
-    
-    if snapshot_path is None:
-        raise Exception("Failed to download dataset after retries")
-    
+    ).expanduser().resolve()
+
     annotations_dir = snapshot_path / "annotations"
     raw_images_dir = snapshot_path / "images"
-    
     if not annotations_dir.exists():
-        raise Exception(f"Annotations directory not found: {annotations_dir}")
+        raise FileNotFoundError(f"Missing annotations under {annotations_dir}")
     if not raw_images_dir.exists():
-        raise Exception(f"Images directory not found: {raw_images_dir}")
-    
-    # Find all JSON annotation files
-    annotation_files = list(annotations_dir.glob("*.json"))
-    if not annotation_files:
-        raise Exception(f"No JSON annotation files found in {annotations_dir}")
-    
-    print(f"Found {len(annotation_files)} annotation file(s)")
-    
-    # Load all annotations
-    all_annotations = []
-    for ann_file in annotation_files:
-        print(f"Loading annotations from {ann_file.name}...")
-        with open(ann_file, "r", encoding="utf-8") as f:
+        raise FileNotFoundError(f"Missing images under {raw_images_dir}")
+
+    annotations = _gather_annotations(annotations_dir)
+    print(f"Loaded {len(annotations)} annotation entries.")
+
+    processed_records: List[Dict] = []
+    jsonl_tmp = paths.jsonl.with_suffix(".tmp")
+
+    with jsonl_tmp.open("w", encoding="utf-8") as writer:
+        iterator: Iterable[Dict] = annotations
+        if limit is not None:
+            iterator = annotations[:limit]
+
+        for idx, ann in enumerate(tqdm(iterator, desc="Preparing ScreenSpot-Pro")):
+            source_rel = ann.get("img_filename")
+            if not source_rel:
+                continue
+
+            source_path = raw_images_dir / source_rel
+            if not source_path.exists():
+                print(f"[WARN] Missing source image: {source_path}")
+                continue
+
+            ext = Path(source_rel).suffix or ".png"
+            dest_filename = f"{idx:06d}{ext}"
+            dest_path = paths.images / dest_filename
+
             try:
-                # Try loading as JSON array
-                data = json.load(f)
-                if isinstance(data, list):
-                    all_annotations.extend(data)
-                elif isinstance(data, dict):
-                    # If it's a dict, check for common keys that might contain the list
-                    for key in ["annotations", "data", "samples", "items"]:
-                        if key in data and isinstance(data[key], list):
-                            all_annotations.extend(data[key])
-                            break
-                    else:
-                        # If no list found, treat the dict itself as a single annotation
-                        all_annotations.append(data)
-            except json.JSONDecodeError as e:
-                print(f"Warning: Failed to parse {ann_file.name}: {e}")
+                _copy_image(source_path, dest_path)
+            except Exception as exc:
+                print(f"[WARN] Failed to copy {source_path}: {exc}")
                 continue
-    
-    print(f"Loaded {len(all_annotations)} annotation entries")
-    
-    # System prompt for ScreenSpot-Pro (expert GUI interaction)
-    system_prompt = (
-        "You are an expert in using electronic devices and interacting with graphic "
-        "interfaces. You should not call any external tools."
-    )
-    
-    # Open JSONL file for incremental writing (so progress isn't lost if interrupted)
-    jsonl_path = output_path / "data.jsonl"
-    records = []
-    
-    print("Processing annotations and images...")
-    print(f"Results will be saved incrementally to: {jsonl_path}")
-    
-    # Write incrementally so progress isn't lost if interrupted
-    with open(jsonl_path, "w", encoding="utf-8") as f:
-        for i, ann in enumerate(tqdm(all_annotations, desc="Processing samples")):
-            # Extract image filename from annotation
-            img_filename = ann.get("img_filename")
-            if not img_filename:
-                print(f"Warning: Sample {i} missing img_filename, skipping")
-                continue
-            
-            # Construct full path to source image
-            source_image_path = raw_images_dir / img_filename
-            
-            if not source_image_path.exists():
-                print(f"Warning: Image not found: {source_image_path}, skipping")
-                continue
-            
-            # Create a simple numbered filename for output
-            # Preserve original extension
-            img_ext = Path(img_filename).suffix or ".png"
-            output_image_filename = f"{i:06d}{img_ext}"
-            dest_image_path = images_path / output_image_filename
-            
-            # Copy image to output directory
-            try:
-                shutil.copy2(source_image_path, dest_image_path)
-            except Exception as e:
-                print(f"Warning: Failed to copy image {source_image_path}: {e}, skipping")
-                continue
-            
-            # Extract instruction
-            instruction = ann.get("instruction", "")
-            if not instruction:
-                instruction = "click on the target element"
-            
-            # Extract bounding box
+
+            instruction = (
+                ann.get("instruction")
+                or ann.get("text")
+                or ann.get("prompt")
+                or "click on the target element"
+            )
+
             bbox = ann.get("bbox")
-            if bbox and isinstance(bbox, list) and len(bbox) >= 4:
-                # Ensure bbox is in correct format [x1, y1, x2, y2]
+            if isinstance(bbox, list) and len(bbox) >= 4:
                 bbox = [int(coord) for coord in bbox[:4]]
             else:
                 bbox = None
-            
-            # Create user text prompt
-            user_text = (
-                f"Query: {instruction}\n"
-                "Output only the coordinate of one point in your response as pyautogui commands.\n"
-                "Format: pyautogui.click(x, y)\n"
-            )
-            
-            # Create record matching ShareGPT format with all metadata
+
+            width = None
+            height = None
+            if isinstance(ann.get("img_size"), (list, tuple)) and len(
+                ann["img_size"]
+            ) >= 2:
+                width, height = ann["img_size"][:2]
+
+            user_text = _format_user_text(instruction, width, height)
             record = {
                 "messages": [
-                    {
-                        "role": "system",
-                        "content": system_prompt
-                    },
-                    {
-                        "role": "user",
-                        "content": f"<image>\n{user_text}"
-                    }
+                    {"role": "system", "content": DEFAULT_SYSTEM_PROMPT},
+                    {"role": "user", "content": f"<image>\n{user_text}"},
                 ],
-                "image_path": f"images/{output_image_filename}",
-                "images": [f"images/{output_image_filename}"],
+                "image_path": f"images/{dest_filename}",
+                "images": [f"images/{dest_filename}"],
                 "instruction": instruction,
                 "user_text": user_text,
-                "sample_id": i,
+                "sample_id": idx,
             }
-            
-            # Add bounding box if available
+
             if bbox:
                 record["bbox"] = bbox
-                record["gt_bbox"] = bbox  # Also store as gt_bbox for evaluation
-            
-            # Preserve all other metadata fields from annotation
+                record["gt_bbox"] = bbox
+
+            # Preserve remaining metadata except the image filename (already recorded)
             for key, value in ann.items():
-                if key not in ["img_filename", "bbox"]:  # Already processed
-                    # Skip None values
-                    if value is not None:
-                        record[key] = value
-            
-            # Write immediately to preserve progress
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
-            f.flush()  # Ensure data is written to disk
-            records.append(record)
-    
-    print(f"Transformed {len(records)} samples to {jsonl_path}")
-    print(f"Images saved to: {images_path}")
-    return records, str(images_path)
+                if key in {"img_filename", "bbox"}:
+                    continue
+                if value is not None:
+                    record[key] = value
+
+            writer.write(json.dumps(record, ensure_ascii=False) + "\n")
+            processed_records.append(record)
+
+    jsonl_tmp.replace(paths.jsonl)
+    print(f"Wrote {len(processed_records)} samples to {paths.jsonl}")
+    return processed_records, str(paths.root)
 
 
-def load_screenspot_pro(data_dir: str = "screenspot_pro", images_dir: str = None) -> Tuple[List[Dict], str]:
+def ensure_dataset(
+    output_dir: os.PathLike[str] | str = "screenspot_pro",
+    refresh: bool = False,
+    limit: Optional[int] = None,
+) -> Tuple[List[Dict], str]:
     """
-    Load existing ScreenSpot-Pro dataset from disk.
-    
-    Args:
-        data_dir: Directory containing the processed dataset (data.jsonl)
-        images_dir: Directory containing images (default: data_dir/images)
-    
-    Returns:
-        Tuple of (records list, images directory path)
+    Convenience wrapper that always returns (records, media_dir).
+
+    This is what downstream scripts should call when they need the dataset.
     """
-    data_path = Path(data_dir)
-    jsonl_path = data_path / "data.jsonl"
-    
-    if not jsonl_path.exists():
-        raise FileNotFoundError(
-            f"Dataset not found at {jsonl_path}. "
-            "Please run download_screenspot_pro() first."
-        )
-    
-    # Determine images directory
-    if images_dir is None:
-        images_path = data_path / "images"
-    else:
-        images_path = Path(images_dir)
-    
-    print(f"Loading existing dataset from {jsonl_path}...")
-    records = []
-    with open(jsonl_path, "r", encoding="utf-8") as f:
-        for line in f:
-            if line.strip():
-                records.append(json.loads(line))
-    
-    print(f"Loaded {len(records)} records")
-    print(f"Images directory: {images_path}")
-    return records, str(images_path)
+    start = time.time()
+    records, media_dir = prepare_screenspot_pro(
+        output_dir=output_dir,
+        refresh=refresh,
+        limit=limit,
+    )
+    elapsed = time.time() - start
+    print(f"ScreenSpot-Pro ready ({len(records)} samples) in {elapsed:.1f}s")
+    return records, media_dir
+
+
+__all__ = [
+    "DEFAULT_SYSTEM_PROMPT",
+    "ScreenSpotPaths",
+    "dataset_available",
+    "load_cached_records",
+    "prepare_screenspot_pro",
+    "ensure_dataset",
+]
 
