@@ -15,10 +15,11 @@ Usage:
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import torch
 from PIL import Image
@@ -26,6 +27,53 @@ from tqdm import tqdm
 from transformers import AutoModelForVision2Seq, AutoProcessor
 
 from screenspot_pro_utils import load_screenspot_pro
+
+
+def parse_coordinates(text: str) -> Optional[Tuple[int, int]]:
+    """
+    Parse coordinates from model output.
+    
+    Args:
+        text: Model output text
+    
+    Returns:
+        Tuple of (x, y) coordinates if found, None otherwise
+    """
+    # Pattern to match pyautogui.click(x, y)
+    pattern = r'pyautogui\.click\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)'
+    match = re.search(pattern, text)
+    
+    if match:
+        x = int(match.group(1))
+        y = int(match.group(2))
+        return (x, y)
+    
+    # Fallback: match any coordinates
+    pattern = r'\(?(\d+)\s*,\s*(\d+)\)?'
+    match = re.search(pattern, text)
+    
+    if match:
+        x = int(match.group(1))
+        y = int(match.group(2))
+        return (x, y)
+    
+    return None
+
+
+def point_in_bbox(x: float, y: float, bbox: List[float]) -> bool:
+    """
+    Check if a point is within a bounding box.
+    
+    Args:
+        x: X coordinate
+        y: Y coordinate
+        bbox: [x_min, y_min, x_max, y_max]
+    
+    Returns:
+        True if point is within bbox, False otherwise
+    """
+    x_min, y_min, x_max, y_max = bbox
+    return x_min <= x <= x_max and y_min <= y <= y_max
 
 
 def load_model(
@@ -121,10 +169,13 @@ def run_inference(
     
     successful = 0
     failed = 0
+    correct = 0
+    evaluated = 0
     start_time = datetime.now()
     
+    # Disable tqdm for cleaner output with running accuracy
     with open(output_path, "w", encoding="utf-8") as f_out:
-        for idx, record in enumerate(tqdm(records, desc="Inference"), 1):
+        for idx, record in enumerate(records, 1):
             # Check limit
             if limit and idx > limit:
                 break
@@ -208,15 +259,26 @@ def run_inference(
                     }
                     
                     # Include ground truth bbox if available
-                    if "bbox" in record:
-                        result["bbox"] = record["bbox"]
-                    if "gt_bbox" in record:
-                        result["gt_bbox"] = record["gt_bbox"]
+                    bbox = record.get("bbox") or record.get("gt_bbox")
+                    if bbox:
+                        result["bbox"] = bbox
+                        result["gt_bbox"] = bbox
                     
                     # Include other metadata
                     for key in ["id", "application", "platform", "img_size", "ui_type", "group"]:
                         if key in record:
                             result[key] = record[key]
+                    
+                    # Evaluate accuracy if bbox available
+                    is_correct = False
+                    if bbox:
+                        coords = parse_coordinates(output_text)
+                        if coords:
+                            x, y = coords
+                            is_correct = point_in_bbox(x, y, bbox)
+                            if is_correct:
+                                correct += 1
+                            evaluated += 1
                     
                     # Write result
                     f_out.write(json.dumps(result, ensure_ascii=False) + "\n")
@@ -228,23 +290,34 @@ def run_inference(
                     failed += 1
                     continue
             
-            # Progress update
-            if idx % progress_interval == 0:
+            # Progress update with running accuracy
+            if idx % progress_interval == 0 or idx == 1:
                 elapsed = (datetime.now() - start_time).total_seconds()
                 rate = idx / elapsed if elapsed > 0 else 0
-                print(f"  [{idx}/{len(records)}] Success: {successful}, Failed: {failed}, Rate: {rate:.2f} samples/s")
+                accuracy = (correct / evaluated * 100) if evaluated > 0 else 0
+                total_to_process = limit if limit else len(records)
+                
+                print(f"  [{idx}/{total_to_process}] "
+                      f"Success: {successful}, Failed: {failed} | "
+                      f"Accuracy: {correct}/{evaluated} ({accuracy:.2f}%) | "
+                      f"Rate: {rate:.2f} samples/s")
     
     # Final summary
     elapsed = (datetime.now() - start_time).total_seconds()
+    total_processed = successful + failed
+    final_accuracy = (correct / evaluated * 100) if evaluated > 0 else 0
+    
     print()
     print("=" * 80)
     print("Inference complete!")
     print("=" * 80)
-    print(f"  Total samples: {successful + failed}")
-    print(f"  ✓ Successful: {successful} ({successful/(successful+failed)*100:.1f}%)")
-    print(f"  ✗ Failed: {failed} ({failed/(successful+failed)*100:.1f}%)")
+    print(f"  Total samples: {total_processed}")
+    print(f"  ✓ Successful: {successful} ({successful/total_processed*100:.1f}%)")
+    print(f"  ✗ Failed: {failed} ({failed/total_processed*100:.1f}%)")
+    print()
+    print(f"  🎯 Accuracy: {correct}/{evaluated} ({final_accuracy:.2f}%)")
     print(f"  ⏱  Time: {elapsed:.1f}s ({elapsed/60:.1f} min)")
-    print(f"  📊 Rate: {(successful+failed)/elapsed:.2f} samples/s")
+    print(f"  📊 Rate: {total_processed/elapsed:.2f} samples/s")
     print(f"  💾 Predictions: {output_path}")
     print()
 
