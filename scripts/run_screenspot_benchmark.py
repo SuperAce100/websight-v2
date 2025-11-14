@@ -176,8 +176,6 @@ def run_inference(
                     payload[key] = record[key]
 
             writer.write(json.dumps(payload, ensure_ascii=False) + "\n")
-            writer.flush()
-            os.fsync(writer.fileno())
             successes += 1
 
     return successes, failures
