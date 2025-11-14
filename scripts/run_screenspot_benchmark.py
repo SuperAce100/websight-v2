@@ -240,17 +240,33 @@ def run_inference(
             
             # Prepare inputs
             try:
-                # Try messages parameter first (conversation format)
-                try:
+                # Try to apply chat template if processor supports it
+                if hasattr(processor, 'apply_chat_template'):
+                    # Use chat template for conversation format
+                    text = processor.apply_chat_template(
+                        messages,
+                        tokenize=False,
+                        add_generation_prompt=True
+                    )
                     inputs = processor(
-                        messages=messages,
+                        text=text,
                         images=image,
                         return_tensors="pt"
                     ).to(device)
-                except TypeError:
-                    # Fallback: some processors use 'text' parameter
+                else:
+                    # Fallback: construct prompt manually from messages
+                    prompt_parts = []
+                    for msg in messages:
+                        role = msg.get("role", "")
+                        content = msg.get("content", "")
+                        if role == "system":
+                            prompt_parts.append(f"System: {content}")
+                        elif role == "user":
+                            prompt_parts.append(f"User: {content}")
+                    text = "\n".join(prompt_parts)
+                    
                     inputs = processor(
-                        text=messages,
+                        text=text,
                         images=image,
                         return_tensors="pt"
                     ).to(device)
