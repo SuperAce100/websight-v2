@@ -11,22 +11,10 @@
 #SBATCH --output=logs/screenspot_benchmark_%j.out
 #SBATCH --error=logs/screenspot_benchmark_%j.err
 
-# End-to-end ScreenSpot-Pro benchmark job:
-#   1. Prepare dataset (if needed)
+# End-to-end ScreenSpot-Pro benchmark job (dataset already cached):
+#   1. Verify dataset under /hai/scratch/asanshay/screenspot-pro
 #   2. Run inference with Asanshay/websight-v2-grounded
 #   3. Evaluate predictions (accuracy + distance stats)
-#
-# Usage:
-#   sbatch \
-#     --export=MODEL_PATH="Asanshay/websight-v2-grounded",DATA_DIR="/hai/scratch/$USER/screenspot_pro" \
-#     slurm/screenspot_benchmark.slurm
-#
-# Optional exported variables:
-#   MODEL_PATH       - HF model id or local path (default Asanshay/websight-v2-grounded)
-#   ADAPTER_PATH     - optional LoRA adapter path
-#   DATA_DIR         - directory for processed ScreenSpot-Pro dataset
-#   RESULTS_DIR      - directory for prediction/eval artifacts (default results/screenspot_pro)
-#   EXTRA_ARGS       - additional flags passed to run_screenspot_benchmark.py
 
 set -euo pipefail
 
@@ -68,9 +56,10 @@ PRED_FILE="${RESULTS_DIR}/screenspot_pro_${SLURM_JOB_ID}.jsonl"
 METRICS_FILE="${RESULTS_DIR}/screenspot_pro_metrics_${SLURM_JOB_ID}.json"
 
 echo ""
-echo "=== Step 1: Prepare dataset ==="
+echo "=== Step 1: Verify dataset ==="
 python scripts/prepare_screenspot_pro.py \
-    --output-dir "${DATA_DIR}"
+    --output-dir "${DATA_DIR}" \
+    --summary
 
 DATA_JSONL="${DATA_DIR}/data.jsonl"
 if [ ! -f "${DATA_JSONL}" ]; then

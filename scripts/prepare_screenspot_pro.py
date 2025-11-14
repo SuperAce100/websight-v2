@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 """
-CLI wrapper around `screenspot_pro_utils` to materialize the ScreenSpot-Pro dataset.
-
-Usage:
-    python scripts/prepare_screenspot_pro.py \
-        --output-dir screenspot_pro \
-        [--refresh] \
-        [--limit 100]
+Validate or summarize an existing ScreenSpot-Pro dataset directory.
 """
 
 from __future__ import annotations
@@ -14,23 +8,18 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from screenspot_pro_utils import ensure_dataset, dataset_available, load_cached_records
+from screenspot_pro_utils import dataset_available, ensure_dataset, load_cached_records
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Download and transform the ScreenSpot-Pro dataset."
+        description="Verify ScreenSpot-Pro dataset presence and print a summary."
     )
     parser.add_argument(
         "--output-dir",
         type=str,
         default="screenspot_pro",
         help="Destination folder for processed dataset.",
-    )
-    parser.add_argument(
-        "--refresh",
-        action="store_true",
-        help="Force re-downloading/re-processing even if cache exists.",
     )
     parser.add_argument(
         "--limit",
@@ -72,19 +61,20 @@ def print_summary(output_dir: str) -> None:
 def main() -> int:
     args = parse_args()
 
-    if dataset_available(args.output_dir) and not args.refresh:
+    if not dataset_available(args.output_dir):
         print(
-            f"Dataset already prepared at {args.output_dir}. "
-            "Use --refresh to rebuild."
+            f"[ERROR] ScreenSpot-Pro dataset not found at {args.output_dir}. "
+            "Place data.jsonl and images/ there before running."
         )
+        return 1
+
     records, media_dir = ensure_dataset(
         output_dir=args.output_dir,
-        refresh=args.refresh,
         limit=args.limit,
     )
 
     print(
-        f"\n✓ ScreenSpot-Pro dataset ready with {len(records)} samples "
+        f"\n✓ ScreenSpot-Pro dataset verified with {len(records)} samples "
         f"in {media_dir}"
     )
 
