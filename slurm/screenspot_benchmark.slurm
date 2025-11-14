@@ -12,7 +12,7 @@
 #SBATCH --error=logs/screenspot_benchmark_%j.err
 
 # End-to-end ScreenSpot-Pro benchmark job (dataset already cached):
-#   1. Verify dataset under /hai/scratch/asanshay/screenspot-pro
+#   1. Sync dataset from raw annotations/images
 #   2. Run inference with Asanshay/websight-v2-grounded
 #   3. Evaluate predictions (accuracy + distance stats)
 
@@ -47,7 +47,8 @@ export HF_DATASETS_CACHE="${HF_HOME}/datasets"
 MODEL_PATH="Asanshay/websight-v2-grounded"
 ADAPTER_PATH=""
 DATA_DIR="/hai/users/a/s/asanshay/websight-v2/screenspot_pro"
-RESULTS_DIR="/hai/scratch/asanshay/screenspot-pro/results"
+RAW_DIR="${DATA_DIR}/raw"
+RESULTS_DIR="${DATA_DIR}/results"
 EXTRA_ARGS=""
 
 mkdir -p "${RESULTS_DIR}"
@@ -56,9 +57,15 @@ PRED_FILE="${RESULTS_DIR}/screenspot_pro_${SLURM_JOB_ID}.jsonl"
 METRICS_FILE="${RESULTS_DIR}/screenspot_pro_metrics_${SLURM_JOB_ID}.json"
 
 echo ""
-echo "=== Step 1: Verify dataset ==="
+echo "=== Step 1: Sync dataset ==="
+if [ ! -d "${RAW_DIR}" ]; then
+    echo "[ERROR] Raw ScreenSpot-Pro snapshot missing at ${RAW_DIR}"
+    exit 1
+fi
 python scripts/prepare_screenspot_pro.py \
     --output-dir "${DATA_DIR}" \
+    --sync-from-raw "${RAW_DIR}" \
+    --force-rebuild \
     --summary
 
 DATA_JSONL="${DATA_DIR}/data.jsonl"

@@ -32,6 +32,17 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print a short summary after preparation completes.",
     )
+    parser.add_argument(
+        "--sync-from-raw",
+        type=str,
+        default=None,
+        help="Path to raw ScreenSpot-Pro snapshot (annotations/ + images/) to rebuild from.",
+    )
+    parser.add_argument(
+        "--force-rebuild",
+        action="store_true",
+        help="Force rebuilding processed data even if it already exists.",
+    )
     return parser.parse_args()
 
 
@@ -61,16 +72,12 @@ def print_summary(output_dir: str) -> None:
 def main() -> int:
     args = parse_args()
 
-    if not dataset_available(args.output_dir):
-        print(
-            f"[ERROR] ScreenSpot-Pro dataset not found at {args.output_dir}. "
-            "Place data.jsonl and images/ there before running."
-        )
-        return 1
-
     records, media_dir = ensure_dataset(
         output_dir=args.output_dir,
         limit=args.limit,
+        raw_source_dir=args.sync_from_raw,
+        rebuild_if_missing=True,
+        force_rebuild=args.force_rebuild,
     )
 
     print(
