@@ -2,7 +2,7 @@
 #SBATCH --job-name=screenspot_benchmark
 #SBATCH --account=ingrai
 #SBATCH --partition=hai
-#SBATCH --nodes=1
+#SBATCH --nodes=1i
 #SBATCH --ntasks-per-node=1
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
