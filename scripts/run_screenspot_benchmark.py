@@ -107,76 +107,79 @@ def run_inference(
     successes = 0
     failures = 0
 
-    with output_file.open("w", encoding="utf-8") as writer:
-        for record in tqdm(records, desc="ScreenSpot-Pro inference"):
-            messages = record.get("messages", [])
-            image_rel = record.get("image_path") or (
-                record.get("images", [""])[0] if record.get("images") else None
-            )
+    # Ensure file starts empty before appending per-sample entries
+    output_file.write_text("", encoding="utf-8")
 
-            if not messages or not image_rel:
-                failures += 1
-                continue
+    for record in tqdm(records, desc="ScreenSpot-Pro inference"):
+        messages = record.get("messages", [])
+        image_rel = record.get("image_path") or (
+            record.get("images", [""])[0] if record.get("images") else None
+        )
 
-            full_image_path = os.path.join(media_dir, image_rel)
-            if not os.path.exists(full_image_path):
-                failures += 1
-                continue
+        if not messages or not image_rel:
+            failures += 1
+            continue
 
+        full_image_path = os.path.join(media_dir, image_rel)
+        if not os.path.exists(full_image_path):
+            failures += 1
+            continue
+
+        try:
+            image = Image.open(full_image_path).convert("RGB")
+        except Exception as exc:
+            print(f"[WARN] Failed to open {full_image_path}: {exc}")
+            failures += 1
+            continue
+
+        try:
+            rendered_prompt = render_messages(processor, messages)
+            inputs = processor(
+                text=rendered_prompt,
+                images=image,
+                return_tensors="pt",
+            ).to(device)
+        except Exception as exc:
+            print(f"[WARN] Failed to tokenize sample {record.get('sample_id')}: {exc}")
+            failures += 1
+            continue
+
+        with torch.no_grad():
             try:
-                image = Image.open(full_image_path).convert("RGB")
+                input_length = inputs.input_ids.shape[1]
+                generated_ids = model.generate(
+                    **inputs,
+                    max_new_tokens=max_new_tokens,
+                    do_sample=False,
+                )
+                generated_ids_trimmed = generated_ids[0][input_length:]
+                output_text = processor.decode(
+                    generated_ids_trimmed,
+                    skip_special_tokens=True,
+                    clean_up_tokenization_spaces=False,
+                ).strip()
             except Exception as exc:
-                print(f"[WARN] Failed to open {full_image_path}: {exc}")
+                print(f"[WARN] Generation failed: {exc}")
                 failures += 1
                 continue
 
-            try:
-                rendered_prompt = render_messages(processor, messages)
-                inputs = processor(
-                    text=rendered_prompt,
-                    images=image,
-                    return_tensors="pt",
-                ).to(device)
-            except Exception as exc:
-                print(f"[WARN] Failed to tokenize sample {record.get('sample_id')}: {exc}")
-                failures += 1
-                continue
+        payload = {
+            "input": {
+                "prompt": messages[-1]["content"] if messages else "",
+                "image_path": image_rel,
+            },
+            "output": output_text,
+            "sample_id": record.get("sample_id"),
+            "instruction": record.get("instruction"),
+        }
 
-            with torch.no_grad():
-                try:
-                    input_length = inputs.input_ids.shape[1]
-                    generated_ids = model.generate(
-                        **inputs,
-                        max_new_tokens=max_new_tokens,
-                        do_sample=False,
-                    )
-                    generated_ids_trimmed = generated_ids[0][input_length:]
-                    output_text = processor.decode(
-                        generated_ids_trimmed,
-                        skip_special_tokens=True,
-                        clean_up_tokenization_spaces=False,
-                    ).strip()
-                except Exception as exc:
-                    print(f"[WARN] Generation failed: {exc}")
-                    failures += 1
-                    continue
+        for key in ("bbox", "gt_bbox", "gt_label"):
+            if key in record:
+                payload[key] = record[key]
 
-            payload = {
-                "input": {
-                    "prompt": messages[-1]["content"] if messages else "",
-                    "image_path": image_rel,
-                },
-                "output": output_text,
-                "sample_id": record.get("sample_id"),
-                "instruction": record.get("instruction"),
-            }
-
-            for key in ("bbox", "gt_bbox", "gt_label"):
-                if key in record:
-                    payload[key] = record[key]
-
+        with output_file.open("a", encoding="utf-8") as writer:
             writer.write(json.dumps(payload, ensure_ascii=False) + "\n")
-            successes += 1
+        successes += 1
 
     return successes, failures
 
