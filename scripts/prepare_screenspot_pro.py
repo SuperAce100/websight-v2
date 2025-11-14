@@ -38,7 +38,13 @@ Examples:
         "--output-dir",
         type=str,
         default="screenspot_pro",
-        help="Output directory for processed dataset (default: screenspot_pro)"
+        help="Output directory for processed dataset (data.jsonl) (default: screenspot_pro)"
+    )
+    parser.add_argument(
+        "--images-dir",
+        type=str,
+        default=None,
+        help="Directory to save images (default: output-dir/images). Use this to store images separately, e.g., /hai/scratch/asanshay/screenspot-pro/images"
     )
     parser.add_argument(
         "--skip-download",
@@ -67,14 +73,37 @@ Examples:
         print("=" * 80)
         print("Loading existing ScreenSpot-Pro dataset")
         print("=" * 80)
-        try:
-            records, media_dir = load_screenspot_pro(args.output_dir)
-            print(f"\n✓ Successfully loaded {len(records)} records from {data_jsonl}")
-            print(f"  Media directory: {media_dir}")
-            return 0
-        except Exception as e:
-            print(f"\n✗ Error loading dataset: {e}")
-            return 1
+        
+        # Check if images directory exists
+        if args.images_dir:
+            images_dir = Path(args.images_dir)
+        else:
+            images_dir = Path(args.output_dir) / "images"
+        
+        if not images_dir.exists():
+            print(f"\n⚠️  Warning: data.jsonl exists but images directory not found at {images_dir}")
+            print("  Re-downloading dataset to ensure completeness...")
+        else:
+            try:
+                records, media_dir = load_screenspot_pro(args.output_dir, args.images_dir)
+                
+                # Count images
+                image_files = list(images_dir.glob("*.png")) + list(images_dir.glob("*.jpg"))
+                image_count = len(image_files)
+                
+                print(f"\n✓ Successfully loaded {len(records)} records from {data_jsonl}")
+                print(f"  Media directory: {media_dir}")
+                print(f"  Images found: {image_count}")
+                
+                # Verify image count
+                if image_count < len(records) - 10:
+                    print(f"\n⚠️  Warning: Image count ({image_count}) is significantly less than record count ({len(records)})")
+                    print("  Some images may be missing. Consider re-downloading without --skip-download")
+                
+                return 0
+            except Exception as e:
+                print(f"\n✗ Error loading dataset: {e}")
+                return 1
     
     # Download and prepare dataset
     print("=" * 80)
@@ -88,17 +117,37 @@ Examples:
     try:
         records, media_dir = download_screenspot_pro(
             output_dir=args.output_dir,
+            images_dir=args.images_dir,
             max_retries=args.max_retries,
             retry_delay=args.retry_delay
         )
+        
+        # Verify images were created
+        if args.images_dir:
+            images_dir = Path(args.images_dir)
+        else:
+            images_dir = Path(args.output_dir) / "images"
+        if images_dir.exists():
+            image_files = list(images_dir.glob("*.png")) + list(images_dir.glob("*.jpg"))
+            image_count = len(image_files)
+        else:
+            image_count = 0
         
         print()
         print("=" * 80)
         print("✓ Dataset preparation complete!")
         print("=" * 80)
         print(f"  Records: {len(records)}")
+        print(f"  Images: {image_count}")
         print(f"  Data file: {data_jsonl}")
         print(f"  Media directory: {media_dir}")
+        
+        # Warn if image count doesn't match
+        if image_count < len(records) - 10:
+            print()
+            print(f"⚠️  Warning: Image count ({image_count}) is less than record count ({len(records)})")
+            print("  Some images may have failed to download or copy.")
+        
         print()
         print("Next steps:")
         print("  1. Run benchmark:")

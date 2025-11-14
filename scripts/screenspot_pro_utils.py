@@ -16,6 +16,7 @@ from tqdm import tqdm
 
 def download_screenspot_pro(
     output_dir: str = "screenspot_pro",
+    images_dir: str = None,
     max_retries: int = 5,
     retry_delay: int = 60
 ) -> Tuple[List[Dict], str]:
@@ -33,12 +34,13 @@ def download_screenspot_pro(
     - Other metadata: id, application, platform, img_size, ui_type, group, etc.
     
     Args:
-        output_dir: Directory to save processed dataset
+        output_dir: Directory to save processed dataset (for data.jsonl)
+        images_dir: Directory to save images (default: output_dir/images)
         max_retries: Maximum number of retry attempts for rate limiting
         retry_delay: Initial delay in seconds between retries (exponential backoff)
     
     Returns:
-        Tuple of (records list, media directory path)
+        Tuple of (records list, images directory path)
     """
     try:
         from huggingface_hub import snapshot_download
@@ -49,8 +51,15 @@ def download_screenspot_pro(
     
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
-    images_dir = output_path / "images"
-    images_dir.mkdir(exist_ok=True)
+    
+    # Use custom images directory if provided, otherwise default to output_dir/images
+    if images_dir is None:
+        images_path = output_path / "images"
+    else:
+        images_path = Path(images_dir)
+    
+    images_path.mkdir(parents=True, exist_ok=True)
+    print(f"Images will be saved to: {images_path}")
     
     # Download dataset from HuggingFace
     raw_dir = output_path / "raw"
@@ -177,7 +186,7 @@ def download_screenspot_pro(
             # Preserve original extension
             img_ext = Path(img_filename).suffix or ".png"
             output_image_filename = f"{i:06d}{img_ext}"
-            dest_image_path = images_dir / output_image_filename
+            dest_image_path = images_path / output_image_filename
             
             # Copy image to output directory
             try:
@@ -243,18 +252,20 @@ def download_screenspot_pro(
             records.append(record)
     
     print(f"Transformed {len(records)} samples to {jsonl_path}")
-    return records, str(output_path)
+    print(f"Images saved to: {images_path}")
+    return records, str(images_path)
 
 
-def load_screenspot_pro(data_dir: str = "screenspot_pro") -> Tuple[List[Dict], str]:
+def load_screenspot_pro(data_dir: str = "screenspot_pro", images_dir: str = None) -> Tuple[List[Dict], str]:
     """
     Load existing ScreenSpot-Pro dataset from disk.
     
     Args:
-        data_dir: Directory containing the processed dataset
+        data_dir: Directory containing the processed dataset (data.jsonl)
+        images_dir: Directory containing images (default: data_dir/images)
     
     Returns:
-        Tuple of (records list, media directory path)
+        Tuple of (records list, images directory path)
     """
     data_path = Path(data_dir)
     jsonl_path = data_path / "data.jsonl"
@@ -265,6 +276,12 @@ def load_screenspot_pro(data_dir: str = "screenspot_pro") -> Tuple[List[Dict], s
             "Please run download_screenspot_pro() first."
         )
     
+    # Determine images directory
+    if images_dir is None:
+        images_path = data_path / "images"
+    else:
+        images_path = Path(images_dir)
+    
     print(f"Loading existing dataset from {jsonl_path}...")
     records = []
     with open(jsonl_path, "r", encoding="utf-8") as f:
@@ -273,5 +290,6 @@ def load_screenspot_pro(data_dir: str = "screenspot_pro") -> Tuple[List[Dict], s
                 records.append(json.loads(line))
     
     print(f"Loaded {len(records)} records")
-    return records, str(data_dir)
+    print(f"Images directory: {images_path}")
+    return records, str(images_path)
 

@@ -75,6 +75,7 @@ mkdir -p .cache/huggingface
 MODEL_PATH="${MODEL_PATH:-Asanshay/websight-v2-grounded}"
 ADAPTER_PATH="${ADAPTER_PATH:-}"
 DATA_DIR="${DATA_DIR:-screenspot_pro}"
+IMAGES_DIR="${IMAGES_DIR:-/hai/scratch/asanshay/screenspot-pro/images}"
 LIMIT="${LIMIT:-}"
 MAX_NEW_TOKENS="${MAX_NEW_TOKENS:-512}"
 
@@ -101,6 +102,7 @@ if [ -n "${ADAPTER_PATH}" ]; then
     echo "Adapter: ${ADAPTER_PATH}"
 fi
 echo "Data directory: ${DATA_DIR}"
+echo "Images directory: ${IMAGES_DIR}"
 echo "Predictions: ${PREDICTIONS_FILE}"
 echo "Results: ${RESULTS_JSON}"
 if [ -n "${LIMIT}" ]; then
@@ -120,14 +122,33 @@ echo ""
 
 DATA_JSONL="${DATA_DIR}/data.jsonl"
 
-if [ -f "${DATA_JSONL}" ]; then
-    echo "✓ Dataset already exists at ${DATA_JSONL}"
+# Check if dataset is complete (both data.jsonl and images directory)
+if [ -f "${DATA_JSONL}" ] && [ -d "${IMAGES_DIR}" ]; then
     SAMPLE_COUNT=$(wc -l < "${DATA_JSONL}")
+    IMAGE_COUNT=$(find "${IMAGES_DIR}" -type f \( -name "*.png" -o -name "*.jpg" \) 2>/dev/null | wc -l)
+    
+    echo "✓ Dataset already exists at ${DATA_JSONL}"
     echo "  Samples: ${SAMPLE_COUNT}"
+    echo "  Images: ${IMAGE_COUNT}"
+    
+    # Verify image count matches sample count (roughly)
+    if [ ${IMAGE_COUNT} -lt $((SAMPLE_COUNT - 10)) ]; then
+        echo "⚠️  Warning: Image count (${IMAGE_COUNT}) is significantly less than sample count (${SAMPLE_COUNT})"
+        echo "  Re-downloading dataset to ensure completeness..."
+        NEED_DOWNLOAD=1
+    else
+        NEED_DOWNLOAD=0
+    fi
 else
+    echo "Dataset not found or incomplete"
+    NEED_DOWNLOAD=1
+fi
+
+if [ ${NEED_DOWNLOAD} -eq 1 ]; then
     echo "Downloading and preparing dataset..."
     python scripts/prepare_screenspot_pro.py \
         --output-dir "${DATA_DIR}" \
+        --images-dir "${IMAGES_DIR}" \
         --max-retries 10 \
         --retry-delay 120
     
@@ -136,8 +157,14 @@ else
         exit 1
     fi
     
+    if [ ! -d "${IMAGES_DIR}" ]; then
+        echo "✗ Error: Images directory not created"
+        exit 1
+    fi
+    
     SAMPLE_COUNT=$(wc -l < "${DATA_JSONL}")
-    echo "✓ Dataset prepared: ${SAMPLE_COUNT} samples"
+    IMAGE_COUNT=$(find "${IMAGES_DIR}" -type f \( -name "*.png" -o -name "*.jpg" \) 2>/dev/null | wc -l)
+    echo "✓ Dataset prepared: ${SAMPLE_COUNT} samples, ${IMAGE_COUNT} images"
 fi
 
 echo ""
@@ -155,6 +182,7 @@ echo ""
 INFERENCE_CMD="python scripts/run_screenspot_benchmark.py \
     --model-name-or-path ${MODEL_PATH} \
     --data-dir ${DATA_DIR} \
+    --images-dir ${IMAGES_DIR} \
     --output ${PREDICTIONS_FILE} \
     --device cuda \
     --max-new-tokens ${MAX_NEW_TOKENS} \

@@ -29,6 +29,27 @@ from transformers import AutoModelForVision2Seq, AutoProcessor
 from screenspot_pro_utils import load_screenspot_pro
 
 
+def get_images_dir_from_records(records: List[Dict], data_dir: str) -> str:
+    """
+    Determine images directory from records or data_dir.
+    
+    Args:
+        records: List of records
+        data_dir: Data directory path
+    
+    Returns:
+        Images directory path
+    """
+    # Check if records have absolute image paths
+    if records and "image_path" in records[0]:
+        first_image = records[0]["image_path"]
+        # If it starts with "images/", it's relative to data_dir
+        if first_image.startswith("images/"):
+            return data_dir
+    
+    return data_dir
+
+
 def parse_coordinates(text: str) -> Optional[Tuple[int, int]]:
     """
     Parse coordinates from model output.
@@ -362,7 +383,13 @@ Examples:
         "--data-dir",
         type=str,
         default="screenspot_pro",
-        help="Directory containing prepared ScreenSpot-Pro dataset (default: screenspot_pro)"
+        help="Directory containing prepared ScreenSpot-Pro dataset (data.jsonl) (default: screenspot_pro)"
+    )
+    parser.add_argument(
+        "--images-dir",
+        type=str,
+        default=None,
+        help="Directory containing images (default: data-dir/images). Use if images are stored separately."
     )
     parser.add_argument(
         "--output",
@@ -416,12 +443,15 @@ Examples:
     
     # Load dataset
     try:
-        records, media_dir = load_screenspot_pro(args.data_dir)
+        records, media_dir = load_screenspot_pro(args.data_dir, args.images_dir)
     except FileNotFoundError as e:
         print(f"✗ Error: {e}")
         print()
         print("Please prepare the dataset first:")
-        print(f"  python scripts/prepare_screenspot_pro.py --output-dir {args.data_dir}")
+        if args.images_dir:
+            print(f"  python scripts/prepare_screenspot_pro.py --output-dir {args.data_dir} --images-dir {args.images_dir}")
+        else:
+            print(f"  python scripts/prepare_screenspot_pro.py --output-dir {args.data_dir}")
         return 1
     except Exception as e:
         print(f"✗ Error loading dataset: {e}")
