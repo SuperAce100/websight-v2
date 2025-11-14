@@ -137,8 +137,8 @@ def run_inference(
         try:
             rendered_prompt = render_messages(processor, messages)
             inputs = processor(
-                text=rendered_prompt,
-                images=image,
+                text=[rendered_prompt],
+                images=[image],
                 return_tensors="pt",
             ).to(device)
         except Exception as exc:

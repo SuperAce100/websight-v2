@@ -49,7 +49,7 @@ ADAPTER_PATH=""
 DATA_DIR="/hai/users/a/s/asanshay/websight-v2/screenspot_pro"
 RAW_DIR="${DATA_DIR}/raw"
 RESULTS_DIR="${DATA_DIR}/results"
-SUBSET_COUNT="${SUBSET_COUNT:-17}"
+SUBSET_COUNT="${SUBSET_COUNT:-13}"
 SUBSET_SEED="${SUBSET_SEED:-${SLURM_JOB_ID:-0}}"
 EXTRA_ARGS=""
 
