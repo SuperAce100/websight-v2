@@ -8,7 +8,16 @@ wheels/
 
 # Virtual environments
 .venv
-AgentNet/
 .env
-wave-ui/
+agentnet_env/
+
+# Data and Results
+data/
+results/
 ckpts/
+runs/
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
