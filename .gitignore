@@ -21,3 +21,5 @@ runs/
 .vscode/
 .idea/
 .DS_Store
+
+agentnet/
