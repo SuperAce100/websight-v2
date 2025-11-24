@@ -55,7 +55,7 @@ For each step, provide your response in this format:
   - Consolidate repetitive keypresses with count
   - Specify expected text outcome for typing actions
 
-**Code:** Finally, output the action as PyAutoGUI code or the following functions:
+**Code:** Finally, output the action as a PyAutoGUI command (e.g. pyautogui.click(x, y), etc.) or the following functions:
 - {"name": "computer.triple_click", "description": "Triple click on the screen", "parameters": {"type": "object", "properties": {"x": {"type": "number", "description": "The x coordinate of the triple click"}, "y": {"type": "number", "description": "The y coordinate of the triple click"}}, "required": ["x", "y"]}}
 - {"name": "computer.terminate", "description": "Terminate the current task and report its completion status", "parameters": {"type": "object", "properties": {"status": {"type": "string", "enum": ["success", "failure"], "description": "The status of the task"}}, "required": ["status"]}}
 
@@ -96,7 +96,7 @@ def format_history_step_with_image(
     """
     Format a history step (i-1 or i-2) with image in Llama Factory format.
     
-    User content: Only the image (with image_path tokenized in the content).
+    User content: Only the image (with <image> tag).
     Assistant content: Step number and action.
     
     Args:
@@ -109,10 +109,9 @@ def format_history_step_with_image(
     """
     user_parts = []
     
-    # User content: only the image (with image_path tokenized in the content)
+    # User content: only the image tag (no path in tag - path goes in separate images list)
     if image_path:
-        # Include the image path directly in the user_content as a tokenized reference
-        user_parts.append(f"<image>{image_path}</image>")
+        user_parts.append("<image>")
     
     user_content = "\n".join(user_parts) if user_parts else ""
     
