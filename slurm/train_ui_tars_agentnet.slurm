@@ -42,7 +42,7 @@ TRAIN_JSON="${DATA_DIR}/agentnet_train.jsonl"
 VAL_JSON="${DATA_DIR}/agentnet_val.jsonl"
 TEST_JSON="${DATA_DIR}/agentnet_test.jsonl"
 
-BASE_MODEL="${BASE_MODEL_PATH:-websight/UI-TARS-1.5-7B}"
+BASE_MODEL="${BASE_MODEL_PATH:-ByteDance-Seed/UI-TARS-1.5-7B}"
 MODEL_REVISION="${BASE_MODEL_REVISION:-main}"
 TEMPLATE="${UI_TARS_TEMPLATE:-ui_tars}"  # Set to sharegpt if template is unavailable
 OUTPUT_DIR="${WORKSPACE_DIR}/saves/ui-tars-1.5-7b/lora/agentnet"
