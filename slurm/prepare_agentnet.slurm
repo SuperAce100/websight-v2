@@ -42,6 +42,8 @@ MIN_TRAJ="${AGENTNET_MIN_TRAJ:-3}"
 SEED="${AGENTNET_SEED:-42}"
 MAX_EXAMPLES="${AGENTNET_MAX_EXAMPLES_PER_TRAJ:-}"
 AUTO_DOWNLOAD="${AGENTNET_AUTO_DOWNLOAD:-1}"
+AUTO_UNZIP="${AGENTNET_AUTO_UNZIP:-1}"
+FORCE_UNZIP="${FORCE_AGENTNET_UNZIP:-0}"
 
 echo "Workspace: ${WORKSPACE_DIR}"
 echo "Raw dir : ${RAW_ROOT}"
@@ -53,25 +55,114 @@ echo ""
 # 1. Validate prerequisites
 # ---------------------------------------------------------------------------
 
-ensure_hf_cli() {
-    if command -v huggingface-cli >/dev/null 2>&1; then
+ensure_hf_tooling() {
+    if command -v hf >/dev/null 2>&1 || command -v huggingface-cli >/dev/null 2>&1; then
         return 0
     fi
 
     if ! command -v uv >/dev/null 2>&1; then
-        echo "✗ Error: huggingface-cli not found and uv is unavailable to install it."
+        echo "✗ Error: huggingface tooling not found and uv is unavailable to install it."
         return 1
     fi
 
-    echo "huggingface-cli not found. Installing huggingface_hub via uv tool install..."
+    echo "Hugging Face CLI tools not found. Installing huggingface_hub via uv..."
     uv tool install huggingface_hub
 
-    if ! command -v huggingface-cli >/dev/null 2>&1; then
-        echo "✗ Error: Failed to install huggingface-cli via uv."
+    if command -v hf >/dev/null 2>&1 || command -v huggingface-cli >/dev/null 2>&1; then
+        return 0
+    fi
+
+    echo "✗ Error: Failed to install Hugging Face CLI tools via uv."
+    return 1
+}
+
+run_hf_download() {
+    ensure_hf_tooling || return 1
+
+    HF_BASE_ARGS=(
+        --repo-type dataset
+        --local-dir "${RAW_ROOT}"
+        --local-dir-use-symlinks False
+    )
+
+    if [ -n "${HF_TOKEN:-}" ]; then
+        HF_BASE_ARGS+=(--token "${HF_TOKEN}")
+    fi
+
+    if command -v hf >/dev/null 2>&1; then
+        echo "Using 'hf download' to fetch xlangai/AgentNet -> ${RAW_ROOT}"
+        hf download "${HF_BASE_ARGS[@]}" xlangai/AgentNet
+    else
+        echo "⚠ Using legacy 'huggingface-cli download' (deprecated upstream)"
+        huggingface-cli download "${HF_BASE_ARGS[@]}" xlangai/AgentNet
+    fi
+}
+
+has_pngs() {
+    local dir="$1"
+    if [ ! -d "${dir}" ]; then
+        return 1
+    fi
+    if find "${dir}" -type f -name '*.png' -print -quit 2>/dev/null | grep -q .; then
+        return 0
+    fi
+    return 1
+}
+
+merge_split_archive() {
+    local split_dir="$1"
+    local label="$2"
+    local base="${split_dir}/images.zip"
+
+    if [ ! -f "${base}" ]; then
         return 1
     fi
 
-    return 0
+    mkdir -p "${IMAGES_DIR}"
+
+    local merged="${split_dir}/${label}_images_full.zip"
+    if [ "${FORCE_UNZIP}" = "1" ] || [ ! -f "${merged}" ]; then
+        echo "→ Merging split archive for ${label} (this may take a while)..."
+        (cd "${split_dir}" && zip -s 0 images.zip --out "$(basename "${merged}")")
+    else
+        echo "→ Reusing existing merged archive for ${label}"
+    fi
+
+    echo "→ Extracting ${label} screenshots into ${IMAGES_DIR}"
+    unzip -oq "${merged}" -d "${IMAGES_DIR}"
+}
+
+ensure_images_available() {
+    if has_pngs "${IMAGES_DIR}"; then
+        return 0
+    fi
+
+    if [ "${AUTO_UNZIP}" = "1" ]; then
+        echo "Screenshots not found at ${IMAGES_DIR}. Attempting to unpack split archives..."
+        merge_split_archive "${RAW_ROOT}/win_mac_images" "win_mac" || true
+        merge_split_archive "${RAW_ROOT}/ubuntu_images" "ubuntu" || true
+    fi
+
+    if has_pngs "${IMAGES_DIR}"; then
+        echo "✓ Screenshots extracted to ${IMAGES_DIR}"
+        return 0
+    fi
+
+    cat <<EOF
+✗ Error: Screenshot directory not found at ${IMAGES_DIR}
+
+Automatic extraction failed. If the dataset download produced split archives, you can manually run:
+  cd ${RAW_ROOT}/win_mac_images
+  zip -s 0 images.zip --out images_win_mac_full.zip
+  unzip -n images_win_mac_full.zip -d ${IMAGES_DIR}
+
+  cd ${RAW_ROOT}/ubuntu_images
+  zip -s 0 images.zip --out images_ubuntu_full.zip
+  unzip -n images_ubuntu_full.zip -d ${IMAGES_DIR}
+
+Ensure all extracted *.png files reside under ${IMAGES_DIR}, then re-run this job.
+EOF
+    return 1
 }
 
 if [ ! -d "${RAW_ROOT}" ]; then
@@ -83,50 +174,14 @@ EOF
         exit 1
     fi
 
-    ensure_hf_cli || exit 1
-
     echo "Downloading AgentNet dataset to ${RAW_ROOT} ..."
     mkdir -p "${RAW_ROOT}"
-
-    HF_ARGS=()
-    if [ -n "${HF_TOKEN:-}" ]; then
-        HF_ARGS+=(--token "${HF_TOKEN}")
-    fi
-
-    huggingface-cli download xlangai/AgentNet \
-        --repo-type dataset \
-        --local-dir "${RAW_ROOT}" \
-        --local-dir-use-symlinks False \
-        "${HF_ARGS[@]}"
+    run_hf_download || exit 1
 fi
 
 mkdir -p "${OUTPUT_DIR}"
 
-if [ ! -d "${IMAGES_DIR}" ]; then
-    cat <<EOF
-✗ Error: Screenshot directory not found at ${IMAGES_DIR}
-
-Expected layout:
-  data/AgentNet/
-    ├── agentnet_win_mac_18k.jsonl
-    ├── agentnet_ubuntu_5k.jsonl
-    └── images/
-        ├── ea83c4aa-a4b1-48af-b439-0de7ee7b8d3f.png
-        ├── ...
-
-Please unzip the split archives first (per AgentNet README):
-  cd data/AgentNet/win_mac_images
-  zip -s 0 images.zip --out images_win_mac_full.zip
-  unzip -n images_win_mac_full.zip -d ../images
-
-  cd data/AgentNet/ubuntu_images
-  zip -s 0 images.zip --out images_ubuntu_full.zip
-  unzip -n images_ubuntu_full.zip -d ../images
-
-Then ensure every *.png lives under data/AgentNet/images/.
-EOF
-    exit 1
-fi
+ensure_images_available || exit 1
 
 RAW_FILES=()
 if [ -f "${RAW_ROOT}/agentnet_win_mac_18k.jsonl" ]; then
