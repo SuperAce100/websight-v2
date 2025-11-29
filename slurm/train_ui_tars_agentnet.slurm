@@ -44,7 +44,7 @@ TEST_JSON="${DATA_DIR}/agentnet_test.jsonl"
 
 BASE_MODEL="${BASE_MODEL_PATH:-ByteDance-Seed/UI-TARS-1.5-7B}"
 MODEL_REVISION="${BASE_MODEL_REVISION:-main}"
-TEMPLATE="${UI_TARS_TEMPLATE:-ui_tars}"  # Set to sharegpt if template is unavailable
+TEMPLATE="${UI_TARS_TEMPLATE:-sharegpt}"  # Override via UI_TARS_TEMPLATE if custom prompt template exists
 OUTPUT_DIR="${WORKSPACE_DIR}/saves/ui-tars-1.5-7b/lora/agentnet"
 mkdir -p "${OUTPUT_DIR}"
 
