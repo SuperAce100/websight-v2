@@ -53,6 +53,27 @@ echo ""
 # 1. Validate prerequisites
 # ---------------------------------------------------------------------------
 
+ensure_hf_cli() {
+    if command -v huggingface-cli >/dev/null 2>&1; then
+        return 0
+    fi
+
+    if ! command -v uv >/dev/null 2>&1; then
+        echo "✗ Error: huggingface-cli not found and uv is unavailable to install it."
+        return 1
+    fi
+
+    echo "huggingface-cli not found. Installing huggingface_hub via uv tool install..."
+    uv tool install huggingface_hub
+
+    if ! command -v huggingface-cli >/dev/null 2>&1; then
+        echo "✗ Error: Failed to install huggingface-cli via uv."
+        return 1
+    fi
+
+    return 0
+}
+
 if [ ! -d "${RAW_ROOT}" ]; then
     if [ "${AUTO_DOWNLOAD}" != "1" ]; then
         cat <<EOF
@@ -62,10 +83,7 @@ EOF
         exit 1
     fi
 
-    if ! command -v huggingface-cli >/dev/null 2>&1; then
-        echo "✗ Error: huggingface-cli not found in PATH (required for auto-download)."
-        exit 1
-    fi
+    ensure_hf_cli || exit 1
 
     echo "Downloading AgentNet dataset to ${RAW_ROOT} ..."
     mkdir -p "${RAW_ROOT}"
