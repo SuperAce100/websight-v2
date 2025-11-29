@@ -45,6 +45,14 @@ AUTO_DOWNLOAD="${AGENTNET_AUTO_DOWNLOAD:-1}"
 AUTO_UNZIP="${AGENTNET_AUTO_UNZIP:-1}"
 FORCE_UNZIP="${FORCE_AGENTNET_UNZIP:-0}"
 
+# Use scratch-backed caches/temp to avoid AFS quota limits
+DEFAULT_CACHE_ROOT="/hai/scratch/asanshay/websight-v2/.cache"
+CACHE_ROOT="${AGENTNET_CACHE_ROOT:-${DEFAULT_CACHE_ROOT}}"
+UV_CACHE_DIR="${CACHE_ROOT}/uv"
+TMPDIR="${CACHE_ROOT}/tmp"
+export UV_CACHE_DIR TMPDIR
+mkdir -p "${UV_CACHE_DIR}" "${TMPDIR}"
+
 echo "Workspace: ${WORKSPACE_DIR}"
 echo "Raw dir : ${RAW_ROOT}"
 echo "Images  : ${IMAGES_DIR}"
