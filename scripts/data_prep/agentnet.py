@@ -471,9 +471,23 @@ def analyze(paths: List[str]) -> None:
 
 
 if __name__ == "__main__":
-    base = "/Users/asanshaygupta/Documents/Codes/websight-v2/AgentNet"
+    # Determine paths relative to the script location
+    # Script is at: scripts/data_prep/agentnet.py
+    # Data is at:   data/AgentNet/
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # Go up 2 levels from scripts/data_prep to get to project root
+    project_root = os.path.dirname(os.path.dirname(current_dir))
+    base = os.path.join(project_root, "data", "AgentNet")
+
     paths = [
         os.path.join(base, "agentnet_ubuntu_5k.jsonl"),
         os.path.join(base, "agentnet_win_mac_18k.jsonl"),
     ]
-    analyze(paths)
+
+    # Filter for files that exist to avoid crashing if one is missing
+    valid_paths = [p for p in paths if os.path.exists(p)]
+
+    if valid_paths:
+        analyze(valid_paths)
+    else:
+        print(f"No data files found in {base}")

@@ -222,10 +222,11 @@ async def main_async():
             model = genai.GenerativeModel("gemini-2.0-flash-exp")
     
     # Paths
-    script_dir = Path(__file__).parent
-    project_root = script_dir.parent
-    data_path = project_root / "wave-ui" / "data.jsonl"
-    output_dir = project_root / "base" / "prompts"
+    script_dir = Path(__file__).resolve().parent
+    # script is in scripts/data_prep/ -> parent is scripts -> parent.parent is project root
+    project_root = script_dir.parent.parent
+    data_path = project_root / "data" / "wave-ui" / "data.jsonl"
+    output_dir = project_root / "data" / "base"
     output_path = output_dir / "prompts.jsonl"
     
     # Check if data file exists
