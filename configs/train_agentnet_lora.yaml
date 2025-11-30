@@ -2,7 +2,7 @@
 model_name_or_path: ByteDance-Seed/UI-TARS-1.5-7B
 model_revision: main
 trust_remote_code: true
-processor_path: ByteDance-Seed/UI-TARS-1.5-7B
+# processor_path: ByteDance-Seed/UI-TARS-1.5-7B
 image_max_pixels: 262144
 
 ### method
