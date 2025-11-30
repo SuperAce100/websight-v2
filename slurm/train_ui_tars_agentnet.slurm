@@ -42,24 +42,7 @@ TRAIN_JSON="${DATA_DIR}/agentnet_train.jsonl"
 VAL_JSON="${DATA_DIR}/agentnet_val.jsonl"
 TEST_JSON="${DATA_DIR}/agentnet_test.jsonl"
 
-BASE_MODEL="${BASE_MODEL_PATH:-ByteDance-Seed/UI-TARS-1.5-7B}"
-MODEL_REVISION="${BASE_MODEL_REVISION:-main}"
-TEMPLATE="${UI_TARS_TEMPLATE:-qwen2_vl}"  # Default to Qwen-style multimodal template; override if custom template is available
-OUTPUT_DIR="${WORKSPACE_DIR}/saves/ui-tars-1.5-7b/lora/agentnet"
-mkdir -p "${OUTPUT_DIR}"
-
-PER_DEVICE_BATCH="${PER_DEVICE_BATCH:-2}"
-GRAD_ACCUM="${GRAD_ACCUM_STEPS:-4}"
-EPOCHS="${AGENTNET_EPOCHS:-1.0}"
-LR="${AGENTNET_LR:-5e-5}"
-LORA_RANK="${AGENTNET_LORA_RANK:-64}"
-LORA_ALPHA="${AGENTNET_LORA_ALPHA:-128}"
-LORA_DROPOUT="${AGENTNET_LORA_DROPOUT:-0.05}"
-SAVE_STEPS="${AGENTNET_SAVE_STEPS:-100}"
-EVAL_STEPS="${AGENTNET_EVAL_STEPS:-400}"
-WORKERS="${AGENTNET_DATA_WORKERS:-16}"
-CUTOFF_LEN="${AGENTNET_CUTOFF_LEN:-8192}"
-MAX_SAMPLES="${AGENTNET_MAX_SAMPLES:-450000}"
+CONFIG_PATH="${LLF_CONFIG_PATH:-configs/train_agentnet_lora.yaml}"
 DEFAULT_CACHE_ROOT="/hai/scratch/asanshay/websight-v2/.cache"
 CACHE_ROOT="${AGENTNET_CACHE_ROOT:-${DEFAULT_CACHE_ROOT}}"
 UV_CACHE_DIR="${CACHE_ROOT}/uv"
@@ -71,9 +54,7 @@ mkdir -p "${UV_CACHE_DIR}" "${PIP_CACHE_DIR}" "${XDG_CACHE_HOME}" "${TMPDIR}"
 
 echo "Workspace: ${WORKSPACE_DIR}"
 echo "Data dir : ${DATA_DIR}"
-echo "Model    : ${BASE_MODEL} (rev: ${MODEL_REVISION})"
-echo "Template : ${TEMPLATE}"
-echo "Output   : ${OUTPUT_DIR}"
+echo "Config   : ${CONFIG_PATH}"
 echo "Media dir: ${MEDIA_DIR}"
 echo ""
 
@@ -161,31 +142,12 @@ echo "✓ Training samples: ${TRAIN_COUNT}"
 if [ -f "${VAL_JSON}" ]; then
     VAL_COUNT=$(wc -l < "${VAL_JSON}")
     echo "✓ Validation samples: ${VAL_COUNT}"
-else
-    echo "⚠ No validation split detected (agentnet_val.jsonl missing). Eval will be skipped."
 fi
 echo ""
 
-# ---------------------------------------------------------------------------
-# 4. Build CLI arguments
-# ---------------------------------------------------------------------------
-
-EVAL_ARGS=()
-if [ -f "${VAL_JSON}" ]; then
-    EVAL_ARGS+=(
-        --do_eval
-        --eval_dataset agentnet_val
-        --per_device_eval_batch_size "${PER_DEVICE_BATCH}"
-        --eval_strategy steps
-        --eval_steps "${EVAL_STEPS}"
-    )
-else
-    EVAL_ARGS+=(--eval_strategy "no")
-fi
-
-MEDIA_ARGS=()
-if [ -d "${MEDIA_DIR}" ]; then
-    MEDIA_ARGS+=(--media_dir "${MEDIA_DIR}")
+if [ ! -f "${CONFIG_PATH}" ]; then
+    echo "✗ Error: Config file ${CONFIG_PATH} not found."
+    exit 1
 fi
 
 if [ ! -f "${WORKSPACE_DIR}/configs/deepspeed_zero2.json" ]; then
@@ -193,67 +155,11 @@ if [ ! -f "${WORKSPACE_DIR}/configs/deepspeed_zero2.json" ]; then
     exit 1
 fi
 
-# ---------------------------------------------------------------------------
-# 5. Launch training
-# ---------------------------------------------------------------------------
-
 echo "========================================"
-echo "Starting llamafactory-cli train"
+echo "Starting llamafactory-cli train via ${CONFIG_PATH}"
 echo "========================================"
-echo "Per-device batch : ${PER_DEVICE_BATCH}"
-echo "Grad accumulation: ${GRAD_ACCUM}"
-echo "Effective batch  : $((PER_DEVICE_BATCH * GRAD_ACCUM * 8))"
-echo "Epochs           : ${EPOCHS}"
-echo "Learning rate    : ${LR}"
-echo "LoRA rank/alpha  : ${LORA_RANK}/${LORA_ALPHA}"
-echo "Max samples      : ${MAX_SAMPLES}"
-echo ""
 
-MAX_SAMPLE_ARGS=()
-if [ "${MAX_SAMPLES}" != "-1" ]; then
-    MAX_SAMPLE_ARGS+=(--max_samples "${MAX_SAMPLES}")
-fi
-
-llamafactory-cli train \
-    --model_name_or_path "${BASE_MODEL}" \
-    --model_revision "${MODEL_REVISION}" \
-    --stage sft \
-    --do_train \
-    --finetuning_type lora \
-    --lora_target all \
-    --lora_rank "${LORA_RANK}" \
-    --lora_alpha "${LORA_ALPHA}" \
-    --lora_dropout "${LORA_DROPOUT}" \
-    --use_rslora \
-    --dataset agentnet_train \
-    --dataset_dir "${DATA_DIR}" \
-    --template "${TEMPLATE}" \
-    "${MEDIA_ARGS[@]}" \
-    --cutoff_len "${CUTOFF_LEN}" \
-    "${MAX_SAMPLE_ARGS[@]}" \
-    --preprocessing_num_workers "${WORKERS}" \
-    --output_dir "${OUTPUT_DIR}" \
-    --logging_steps 10 \
-    --save_steps "${SAVE_STEPS}" \
-    --plot_loss \
-    --per_device_train_batch_size "${PER_DEVICE_BATCH}" \
-    --gradient_accumulation_steps "${GRAD_ACCUM}" \
-    --learning_rate "${LR}" \
-    --num_train_epochs "${EPOCHS}" \
-    --lr_scheduler_type cosine \
-    --warmup_ratio 0.05 \
-    --bf16 \
-    --ddp_timeout 180000000 \
-    --optim adamw_torch \
-    --weight_decay 0.01 \
-    --max_grad_norm 1.0 \
-    --save_strategy steps \
-    --save_total_limit 3 \
-    --deepspeed configs/deepspeed_zero2.json \
-    --report_to tensorboard \
-    --gradient_checkpointing \
-    --flash_attn fa2 \
-    "${EVAL_ARGS[@]}"
+llamafactory-cli train "${CONFIG_PATH}"
 
 EXIT_CODE=$?
 

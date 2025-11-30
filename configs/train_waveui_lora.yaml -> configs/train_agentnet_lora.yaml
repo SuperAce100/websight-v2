@@ -1,0 +1,60 @@
+### model
+model_name_or_path: ByteDance-Seed/UI-TARS-1.5-7B
+model_revision: main
+trust_remote_code: true
+processor_path: ByteDance-Seed/UI-TARS-1.5-7B
+image_max_pixels: 262144
+
+### method
+stage: sft
+do_train: true
+do_eval: true
+finetuning_type: lora
+lora_rank: 64
+lora_alpha: 128
+lora_dropout: 0.05
+use_rslora: true
+lora_target: all
+
+### dataset
+dataset: agentnet_train
+eval_dataset: agentnet_val
+dataset_dir: data
+media_dir: /hai/scratch/asanshay/websight-v2/agentnet/images
+template: qwen2_vl
+cutoff_len: 8192
+max_samples: 450000
+preprocessing_num_workers: 16
+dataloader_num_workers: 4
+overwrite_cache: false
+
+### output
+output_dir: saves/ui-tars-1.5-7b/lora/agentnet
+logging_steps: 10
+save_steps: 100
+save_strategy: steps
+save_total_limit: 3
+report_to: tensorboard
+plot_loss: true
+
+### train
+per_device_train_batch_size: 2
+per_device_eval_batch_size: 2
+gradient_accumulation_steps: 4
+learning_rate: 5.0e-5
+num_train_epochs: 1.0
+lr_scheduler_type: cosine
+warmup_ratio: 0.05
+bf16: true
+ddp_timeout: 180000000
+optim: adamw_torch
+weight_decay: 0.01
+max_grad_norm: 1.0
+gradient_checkpointing: true
+
+### eval
+eval_strategy: steps
+eval_steps: 400
+
+### misc
+deepspeed: configs/deepspeed_zero2.json
