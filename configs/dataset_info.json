@@ -54,7 +54,8 @@
       "user_tag": "user",
       "assistant_tag": "assistant",
       "system_tag": "system"
-    }
+    },
+    "template": "qwen2_vl"
   },
   "agentnet_val": {
     "file_name": "agentnet_val.jsonl",
@@ -69,7 +70,8 @@
       "user_tag": "user",
       "assistant_tag": "assistant",
       "system_tag": "system"
-    }
+    },
+    "template": "qwen2_vl"
   },
   "agentnet_test": {
     "file_name": "agentnet_test.jsonl",
