@@ -52,7 +52,8 @@
       "role_tag": "role",
       "content_tag": "content",
       "user_tag": "user",
-      "assistant_tag": "assistant"
+      "assistant_tag": "assistant",
+      "system_tag": "system"
     }
   },
   "agentnet_val": {
@@ -66,7 +67,8 @@
       "role_tag": "role",
       "content_tag": "content",
       "user_tag": "user",
-      "assistant_tag": "assistant"
+      "assistant_tag": "assistant",
+      "system_tag": "system"
     }
   },
   "agentnet_test": {
@@ -80,7 +82,8 @@
       "role_tag": "role",
       "content_tag": "content",
       "user_tag": "user",
-      "assistant_tag": "assistant"
+      "assistant_tag": "assistant",
+      "system_tag": "system"
     }
   }
 }
