@@ -279,24 +279,10 @@ def create_training_example(
     messages.append({"role": "system", "content": build_system_message(record)})
 
     # Process history steps:
-    # - Steps 0 to step_idx-3: Combined into single assistant block (no images)
+    # - We intentionally skip the combined assistant-only history block because ShareGPT-format
+    #   datasets must alternate user/assistant turns (after the optional system message).
     # - Step step_idx-2: User block (image only) + Assistant block (step + action)
     # - Step step_idx-1: User block (image only) + Assistant block (step + action)
-
-    early_steps = []  # Steps 0 to step_idx-3
-
-    # Collect early steps (0 to step_idx-3) for combined assistant block
-    for i in range(step_idx - 2):
-        step = traj[i]
-        step_data = extract_step_data(step)
-        if step_data and step_data.get("action"):
-            early_steps.append({"step_idx": i, "action": step_data["action"]})
-
-    # Add combined early steps as single assistant block
-    if early_steps:
-        early_history_content = format_early_history_steps(early_steps)
-        if early_history_content:
-            messages.append({"role": "assistant", "content": early_history_content})
 
     # Add step step_idx-2 with image (if it exists)
     if step_idx >= 2:
