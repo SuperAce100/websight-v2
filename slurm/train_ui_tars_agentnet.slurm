@@ -8,7 +8,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=8
 #SBATCH --gres=gpu:8
-#SBATCH --cpus-per-task=12
+#SBATCH --cpus-per-task=16
 #SBATCH --mem=480G
 
 # LoRA fine-tuning of UI-TARS-1.5-7B on the AgentNet dataset with LLaMA-Factory.
@@ -32,19 +32,15 @@ cd "${WORKSPACE_DIR}"
 
 mkdir -p logs saves
 
-DEFAULT_PROCESSED_DIR="${AGENTNET_PROCESSED_DIR:-${WORKSPACE_DIR}/data}"
-DATA_DIR="${DEFAULT_PROCESSED_DIR}"
-mkdir -p "${DATA_DIR}"
-
-DEFAULT_MEDIA_DIR="/hai/scratch/asanshay/websight-v2/agentnet/images"
-MEDIA_DIR="${AGENTNET_IMAGE_DIR:-${DEFAULT_MEDIA_DIR}}"
+DATA_DIR="${WORKSPACE_DIR}/data"
+MEDIA_DIR="/hai/scratch/asanshay/websight-v2/agentnet/images"
 TRAIN_JSON="${DATA_DIR}/agentnet_train.jsonl"
 VAL_JSON="${DATA_DIR}/agentnet_val.jsonl"
-TEST_JSON="${DATA_DIR}/agentnet_test.jsonl"
+TOKENIZED_PATH="/hai/scratch/asanshay/websight-v2/agentnet/tokenized/ui_tars_agentnet"
+mkdir -p "${DATA_DIR}" "$(dirname "${TOKENIZED_PATH}")"
 
-CONFIG_PATH="${LLF_CONFIG_PATH:-configs/train_agentnet_lora.yaml}"
-DEFAULT_CACHE_ROOT="/hai/scratch/asanshay/websight-v2/.cache"
-CACHE_ROOT="${AGENTNET_CACHE_ROOT:-${DEFAULT_CACHE_ROOT}}"
+CONFIG_PATH="configs/train_agentnet_lora.yaml"
+CACHE_ROOT="/hai/scratch/asanshay/websight-v2/.cache"
 UV_CACHE_DIR="${CACHE_ROOT}/uv"
 PIP_CACHE_DIR="${CACHE_ROOT}/pip"
 XDG_CACHE_HOME="${CACHE_ROOT}/xdg"
@@ -56,6 +52,7 @@ echo "Workspace: ${WORKSPACE_DIR}"
 echo "Data dir : ${DATA_DIR}"
 echo "Config   : ${CONFIG_PATH}"
 echo "Media dir: ${MEDIA_DIR}"
+echo "Tokenized: ${TOKENIZED_PATH}"
 echo ""
 
 # ---------------------------------------------------------------------------
@@ -70,7 +67,7 @@ fi
 
 if [ ! -d "${MEDIA_DIR}" ]; then
     echo "✗ Error: Screenshot directory ${MEDIA_DIR} missing."
-    echo "  Ensure AgentNet images are extracted there or override AGENTNET_IMAGE_DIR."
+    echo "  Ensure AgentNet images are extracted there."
     exit 1
 fi
 
@@ -109,9 +106,12 @@ uv pip install -e LLaMA-Factory
 
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+export CUDA_DEVICE_MAX_CONNECTIONS=1
 export NCCL_DEBUG=INFO
 export NCCL_IB_DISABLE=0
 export NCCL_NET_GDR_LEVEL=3
+export OMP_NUM_THREADS=4
+export MKL_NUM_THREADS=4
 export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
 export HF_HOME="${WORKSPACE_DIR}/.cache/huggingface"
 export HF_DATASETS_CACHE="${WORKSPACE_DIR}/.cache/huggingface/datasets"
@@ -136,14 +136,6 @@ ln -sf "${WORKSPACE_DIR}/configs/dataset_info.json" LLaMA-Factory/data/dataset_i
 ln -sf "${WORKSPACE_DIR}/configs/dataset_info.json" "${DATA_DIR}/dataset_info.json"
 echo "✓ Linked dataset_info.json"
 
-TRAIN_COUNT=$(wc -l < "${TRAIN_JSON}")
-echo "✓ Training samples: ${TRAIN_COUNT}"
-if [ -f "${VAL_JSON}" ]; then
-    VAL_COUNT=$(wc -l < "${VAL_JSON}")
-    echo "✓ Validation samples: ${VAL_COUNT}"
-fi
-echo ""
-
 if [ ! -f "${CONFIG_PATH}" ]; then
     echo "✗ Error: Config file ${CONFIG_PATH} not found."
     exit 1
@@ -158,7 +150,7 @@ echo "========================================"
 echo "Starting llamafactory-cli train via ${CONFIG_PATH}"
 echo "========================================"
 
-llamafactory-cli train "${CONFIG_PATH}"
+llamafactory-cli train "${CONFIG_PATH}" --tokenized_path "${TOKENIZED_PATH}"
 
 EXIT_CODE=$?
 
@@ -166,8 +158,6 @@ echo ""
 echo "========================================"
 if [ ${EXIT_CODE} -eq 0 ]; then
     echo "✓ Training completed successfully."
-    echo "Adapter path: ${OUTPUT_DIR}"
-    echo "Next: edit slurm/merge_and_push.slurm to merge & upload weights."
 else
     echo "✗ Training failed with exit code ${EXIT_CODE}"
 fi

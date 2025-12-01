@@ -23,9 +23,12 @@ media_dir: /hai/scratch/asanshay/websight-v2/agentnet/images
 template: qwen2_vl
 cutoff_len: 8192
 max_samples: 450000
-preprocessing_num_workers: 16
-dataloader_num_workers: 4
+preprocessing_batch_size: 1024
+preprocessing_num_workers: 32
+dataloader_num_workers: 16
 overwrite_cache: false
+tokenized_path: /hai/scratch/asanshay/websight-v2/agentnet/tokenized/ui_tars_agentnet
+data_shared_file_system: true
 
 ### output
 output_dir: saves/ui-tars-1.5-7b/lora/agentnet
@@ -37,19 +40,22 @@ report_to: tensorboard
 plot_loss: true
 
 ### train
-per_device_train_batch_size: 2
-per_device_eval_batch_size: 2
-gradient_accumulation_steps: 4
+per_device_train_batch_size: 4
+per_device_eval_batch_size: 4
+gradient_accumulation_steps: 2
 learning_rate: 5.0e-5
 num_train_epochs: 1.0
 lr_scheduler_type: cosine
 warmup_ratio: 0.05
 bf16: true
+tf32: true
+torch_compile: true
+torch_compile_backend: inductor
 ddp_timeout: 180000000
 optim: adamw_torch
 weight_decay: 0.01
 max_grad_norm: 1.0
-gradient_checkpointing: true
+gradient_checkpointing: false
 
 ### eval
 eval_strategy: steps
