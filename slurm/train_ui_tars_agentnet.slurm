@@ -36,7 +36,6 @@ DATA_DIR="${WORKSPACE_DIR}/data"
 MEDIA_DIR="/hai/scratch/asanshay/websight-v2/agentnet/images"
 TRAIN_JSON="${DATA_DIR}/agentnet_train.jsonl"
 VAL_JSON="${DATA_DIR}/agentnet_val.jsonl"
-TOKENIZED_PATH="/hai/scratch/asanshay/websight-v2/agentnet/tokenized/ui_tars_agentnet"
 mkdir -p "${DATA_DIR}" "$(dirname "${TOKENIZED_PATH}")"
 
 CONFIG_PATH="configs/train_agentnet_lora.yaml"
@@ -52,7 +51,6 @@ echo "Workspace: ${WORKSPACE_DIR}"
 echo "Data dir : ${DATA_DIR}"
 echo "Config   : ${CONFIG_PATH}"
 echo "Media dir: ${MEDIA_DIR}"
-echo "Tokenized: ${TOKENIZED_PATH}"
 echo ""
 
 # ---------------------------------------------------------------------------
@@ -150,7 +148,7 @@ echo "========================================"
 echo "Starting llamafactory-cli train via ${CONFIG_PATH}"
 echo "========================================"
 
-llamafactory-cli train "${CONFIG_PATH}" --tokenized_path "${TOKENIZED_PATH}"
+llamafactory-cli train "${CONFIG_PATH}"
 
 EXIT_CODE=$?
 
