@@ -27,7 +27,7 @@ preprocessing_batch_size: 1024
 preprocessing_num_workers: 32
 dataloader_num_workers: 16
 overwrite_cache: false
-tokenized_path: /hai/scratch/asanshay/websight-v2/agentnet/tokenized/ui_tars_agentnet
+# tokenized_path: /hai/scratch/asanshay/websight-v2/agentnet/tokenized/ui_tars_agentnet
 data_shared_file_system: true
 
 ### output
