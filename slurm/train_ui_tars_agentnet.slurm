@@ -36,7 +36,7 @@ DATA_DIR="${WORKSPACE_DIR}/data"
 MEDIA_DIR="/hai/scratch/asanshay/websight-v2/agentnet/images"
 TRAIN_JSON="${DATA_DIR}/agentnet_train.jsonl"
 VAL_JSON="${DATA_DIR}/agentnet_val.jsonl"
-mkdir -p "${DATA_DIR}" "$(dirname "${TOKENIZED_PATH}")"
+mkdir -p "${DATA_DIR}"
 
 CONFIG_PATH="configs/train_agentnet_lora.yaml"
 CACHE_ROOT="/hai/scratch/asanshay/websight-v2/.cache"
