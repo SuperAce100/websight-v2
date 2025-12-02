@@ -111,11 +111,13 @@ export NCCL_NET_GDR_LEVEL=3
 export OMP_NUM_THREADS=4
 export MKL_NUM_THREADS=4
 export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
-export HF_HOME="${WORKSPACE_DIR}/.cache/huggingface"
-export HF_DATASETS_CACHE="${WORKSPACE_DIR}/.cache/huggingface/datasets"
-export TRITON_CACHE_DIR="${WORKSPACE_DIR}/.cache/triton"
+HF_HOME="${CACHE_ROOT}/huggingface"
+HF_DATASETS_CACHE="${HF_HOME}/datasets"
+HF_HUB_CACHE="${HF_HOME}/hub"
+TRITON_CACHE_DIR="${CACHE_ROOT}/triton"
+export HF_HOME HF_DATASETS_CACHE HF_HUB_CACHE TRITON_CACHE_DIR
 export CUDA_TF32_ENABLED=1
-mkdir -p "${HF_HOME}" "${HF_DATASETS_CACHE}" "${TRITON_CACHE_DIR}"
+mkdir -p "${HF_HOME}" "${HF_DATASETS_CACHE}" "${HF_HUB_CACHE}" "${TRITON_CACHE_DIR}"
 
 echo ""
 echo "========================================"
