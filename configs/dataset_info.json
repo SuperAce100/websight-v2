@@ -85,5 +85,21 @@
       "assistant_tag": "assistant",
       "system_tag": "system"
     }
+  },
+  "agentnet_kto_train": {
+    "file_name": "agentnet_kto.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages",
+      "images": "images",
+      "kto_tag": "kto_tag"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
   }
 }

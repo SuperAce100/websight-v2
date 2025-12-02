@@ -5,7 +5,7 @@ Transform agentnet dataset for KTO (Kahneman-Tversky Optimization) reinforcement
 This script transforms agentnet trajectories into KTO format:
 - Extracts each trajectory as a complete conversation
 - Splits into positive examples (task_completed=True) and negative examples (task_completed=False)
-- Formats as messages following LLaMA-Factory's ShareGPT format with labels
+- Formats as messages following LLaMA-Factory's ShareGPT format with kto_tag
 
 For KTO, we need preference pairs or labeled examples:
 - Positive: task_completed=True (desired completions)
@@ -212,13 +212,13 @@ def transform_trajectory_to_kto_example(
         min_traj_length: Minimum trajectory length to process
 
     Returns:
-        Transformed record in KTO format with label, or None if invalid
+        Transformed record in KTO format with kto_tag, or None if invalid
     """
     traj = record.get("traj", [])
     if not isinstance(traj, list) or len(traj) < min_traj_length:
         return None
 
-    # Check task_completed to determine label
+    # Check task_completed to determine kto_tag
     task_completed = record.get("task_completed", False)
     
     # Get task description
@@ -268,7 +268,7 @@ def transform_trajectory_to_kto_example(
     # Build KTO example
     kto_example = {
         "messages": messages,
-        "label": "true" if task_completed else "false",  # 1 for positive, 0 for negative
+        "kto_tag": task_completed,  # True for positive (task completed), False for negative
     }
 
     # Add images if available
@@ -361,8 +361,8 @@ def main():
             skipped += 1
             continue
 
-        # Separate by label
-        if example["label"] == "true":
+        # Separate by kto_tag
+        if example["kto_tag"]:
             positive_examples.append(example)
         else:
             negative_examples.append(example)
