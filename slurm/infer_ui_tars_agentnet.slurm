@@ -54,9 +54,13 @@ import torch
 from transformers import AutoModelForVision2Seq, AutoProcessor
 from PIL import Image
 
+# Reduce allocator fragmentation on large generations.
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
 image_path="/hai/users/a/s/asanshay/websight-v2/sample.png"
 prompt="Click the Add New button"
 model_id="Asanshay/websight-2-7B-kto"
+max_new_tokens=128
 
 print(f"Loading model: {model_id}")
 processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
@@ -137,7 +141,7 @@ inputs = processor(
 ).to(model.device)
 
 with torch.inference_mode():
-    output_ids = model.generate(**inputs, max_new_tokens=512, do_sample=False)
+    output_ids = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
 
 result = processor.decode(output_ids[0], skip_special_tokens=True, clean_up_tokenization_spaces=True).strip()
 print("\nRaw model output:")
