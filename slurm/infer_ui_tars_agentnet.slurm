@@ -60,7 +60,7 @@ os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 image_path="/hai/users/a/s/asanshay/websight-v2/sample.png"
 prompt="Click the Add New button"
 model_id="Asanshay/websight-2-7B-kto"
-max_new_tokens=128
+max_new_tokens=256
 
 print(f"Loading model: {model_id}")
 processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
