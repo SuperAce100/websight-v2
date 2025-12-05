@@ -71,32 +71,49 @@ model.eval()
 image = Image.open(image_path).convert("RGB")
 
 system_prompt = """
-You are a GUI agent. You are given a task and your action history, with screenshots. You need to perform the next action to complete the task.
+You are a GUI agent. You are given a task and a screenshot of the screen. You 
+need to perform a series of pyautogui actions to complete the task.
 
-## Output Format
-```
-Thought: ...
-Action: # Put PyAutoGUI Code Here
-```
+For each step, provide your response in this format:
 
-## Action Space
+**Thought:**
+- Step by Step Progress Assessment:
+  - Analyze completed task parts and their contribution to the overall goal
+  - Reflect on potential errors, unexpected results, or obstacles
+  - If previous action was incorrect, predict a logical recovery step
+- Next Action Analysis:
+  - List possible next actions based on current state
+  - Evaluate options considering current state and previous actions
+  - Propose most logical next action
+  - Anticipate consequences of the proposed action
+- For Text Input:
+  - Note current cursor position
+  - Consolidate repetitive actions (specify count for multiple keypresses)
+  - Describe expected final text outcome
+- Use first-person perspective in reasoning
 
-click(point='<point>x1 y1</point>')
-left_double(point='<point>x1 y1</point>')
-right_single(point='<point>x1 y1</point>')
-drag(start_point='<point>x1 y1</point>', end_point='<point>x2 y2</point>')
-hotkey(key='ctrl c') # Split keys with a space and use lowercase. Also, do not use more than 3 keys in one hotkey action.
-type(content='xxx') # Use escape characters \\', \\\", and \\n in content part to ensure we can parse the content in normal python string format. If you want to submit your input, use \\n at the end of content. 
-scroll(point='<point>x1 y1</point>', direction='down or up or right or left') # Show more information on the `direction` side.
-wait() #Sleep for 5s and take a screenshot to check for any changes.
-finished(content='xxx') # Use escape characters \\', \\", and \\n in content part to ensure we can parse the content in normal python string format.
+**Action:** Provide clear, concise, and actionable instructions:
+- If the action involves interacting with a specific target:
+  - Describe target explicitly without using coordinates
+  - Specify element names when possible
+  - Describe features (shape, color, position) if name unavailable
+  - For window control buttons, identify correctly (minimize, maximize, close)
+- If the action involves keyboard actions like 'press', 'write', 'hotkey':
+  - Consolidate repetitive keypresses with count
+  - Specify expected text outcome for typing actions
 
+**Code:** Finally, output the action as a PyAutoGUI command (e.g. 
+pyautogui.click(x, y), etc.) or the following functions:
+- {"name": "computer.triple_click", "description": "Triple click on the screen",
+"parameters": {"type": "object", "properties": {"x": {"type": "number", "description": 
+"The x coordinate of the triple click"}, "y": {"type": "number", "description": "The y 
+coordinate of the triple click"}}, "required": ["x", "y"]}}
+- {"name": "computer.terminate", "description": "Terminate the current task and report 
+its completion status", "parameters": {"type": "object", "properties": {"status": {"type":
+"string", "enum": ["success", "failure"], "description": "The status of the task"}}, 
+"required": ["status"]}}
 
-## Note
-- Use ENGLISH in `Thought` part.
-- Write a small plan and finally summarize your next action (with its target element) in one sentence in `Thought` part. Then put the action itself in the `Action` part.
-
-YOU MUST INCLUDE THE ACTION IN THE ACTION PART
+Use normalized coordinates (0.0 to 1.0) for all position-based commands.
 """
 
 messages = [
@@ -120,7 +137,7 @@ inputs = processor(
 ).to(model.device)
 
 with torch.inference_mode():
-    output_ids = model.generate(**inputs, max_new_tokens=64, do_sample=False)
+    output_ids = model.generate(**inputs, max_new_tokens=512, do_sample=False)
 
 result = processor.decode(output_ids[0], skip_special_tokens=True, clean_up_tokenization_spaces=True).strip()
 print("\nRaw model output:")
