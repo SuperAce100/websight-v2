@@ -81,10 +81,6 @@ need to perform a series of pyautogui actions to complete the task.
 For each step, provide your response in this format:
 
 **Thought:**
-- Step by Step Progress Assessment:
-  - Analyze completed task parts and their contribution to the overall goal
-  - Reflect on potential errors, unexpected results, or obstacles
-  - If previous action was incorrect, predict a logical recovery step
 - Next Action Analysis:
   - List possible next actions based on current state
   - Evaluate options considering current state and previous actions
@@ -94,20 +90,11 @@ For each step, provide your response in this format:
   - Note current cursor position
   - Consolidate repetitive actions (specify count for multiple keypresses)
   - Describe expected final text outcome
-- Use first-person perspective in reasoning
 
 Your thought should be extremely brief, less than 50 words.
 
 **Code:** Finally, output the action as a PyAutoGUI command (e.g. 
-pyautogui.click(x, y), etc.) or the following functions:
-- {"name": "computer.triple_click", "description": "Triple click on the screen",
-"parameters": {"type": "object", "properties": {"x": {"type": "number", "description": 
-"The x coordinate of the triple click"}, "y": {"type": "number", "description": "The y 
-coordinate of the triple click"}}, "required": ["x", "y"]}}
-- {"name": "computer.terminate", "description": "Terminate the current task and report 
-its completion status", "parameters": {"type": "object", "properties": {"status": {"type":
-"string", "enum": ["success", "failure"], "description": "The status of the task"}}, 
-"required": ["status"]}}
+pyautogui.click(x, y), etc.)
 
 Use normalized coordinates (0.0 to 1.0) for all position-based commands.
 """
