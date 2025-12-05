@@ -93,7 +93,11 @@ ls -lh "${MERGE_OUT}"
 # Optional: push to Hugging Face if HUB_MODEL_ID is provided
 echo ""
 echo "Pushing to Hugging Face: ${HUB_MODEL_ID}"
-huggingface-cli upload "${MERGE_OUT}" "${HUB_MODEL_ID}" \
+if [ ! -d "${MERGE_OUT}" ]; then
+    echo "✗ Error: merged output directory not found: ${MERGE_OUT}"
+    exit 1
+fi
+huggingface-cli upload "${MERGE_OUT}/." "${HUB_MODEL_ID}" \
     --repo-type model \
     --token "${HF_TOKEN}" \
     --exclude ".git/*"
