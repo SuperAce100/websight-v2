@@ -19,14 +19,9 @@ set -euo pipefail
 WORKSPACE_DIR="/hai/users/a/s/asanshay/websight-v2"
 cd "${WORKSPACE_DIR}"
 
-IMAGE_PATH="/hai/users/a/s/asanshay/websight-v2/sample.png"
-PROMPT="Click the Add New button"
-MODEL_ID="Asanshay/websight-2-7B-kto"
+
 
 echo "Workspace : ${WORKSPACE_DIR}"
-echo "Image     : ${IMAGE_PATH}"
-echo "Prompt    : ${PROMPT}"
-echo "Model     : ${MODEL_ID}"
 echo "Start     : $(date)"
 echo ""
 
@@ -63,9 +58,9 @@ import torch
 from transformers import AutoModelForVision2Seq, AutoProcessor
 from PIL import Image
 
-image_path = os.environ.get("IMAGE_PATH")
-prompt = os.environ.get("PROMPT", "click the login button")
-model_id = os.environ.get("MODEL_ID")
+image_path="/hai/users/a/s/asanshay/websight-v2/sample.png"
+prompt="Click the Add New button"
+model_id="Asanshay/websight-2-7B-kto"
 
 print(f"Loading model: {model_id}")
 processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
