@@ -95,6 +95,8 @@ finished(content='xxx') # Use escape characters \\', \\", and \\n in content par
 ## Note
 - Use ENGLISH in `Thought` part.
 - Write a small plan and finally summarize your next action (with its target element) in one sentence in `Thought` part. Then put the action itself in the `Action` part.
+
+YOU MUST INCLUDE THE ACTION IN THE ACTION PART
 """
 
 messages = [
@@ -106,7 +108,7 @@ messages = [
         "role": "user",
         "content": [
             {"type": "image"},
-            {"type": "text", "text": f"The user has said: {prompt}"},
+            {"type": "text", "text": f"This is the state of my computer right now. Create a new project."},
         ],
     },
 ]
