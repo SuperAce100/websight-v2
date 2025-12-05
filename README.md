@@ -28,25 +28,35 @@ sbatch --account=ingrai slurm/train_ui_tars_agentnet.slurm
 ### 3. KTO Training
 
 Prepare KTO data:
+
 ```bash
 bash scripts/data_prep/prepare_kto_data.sh
 ```
 
 Train with KTO:
+
 ```bash
 sbatch --account=ingrai slurm/train_agentnet_kto.slurm
 ```
 
 See: [KTO Training Setup](docs/KTO_TRAINING_SETUP.md)
 
+### INFERENCE 🧠
+
+```bash
+python scripts/infer_ui_tars_agentnet.py
+```
+
 ## Documentation
 
 ### Training
+
 - [KTO Training Setup](docs/KTO_TRAINING_SETUP.md) - Complete KTO training guide
 - [Data Split 70/30](docs/DATA_SPLIT_70_30.md) - How data is split between SFT and KTO
 - [Plot Training Curves](docs/PLOT_TRAINING_CURVES.md) - Visualize training progress
 
 ### Model Operations
+
 - [Merge Model](docs/MERGE_MODEL_README.md) - Merge LoRA adapters with base model
 - [Merge Model Usage](docs/MERGE_MODEL_USAGE.md) - Quick merge guide
 - [Checkpoint to Inference](docs/checkpoint_to_inference.md) - Prepare models for inference
@@ -80,15 +90,18 @@ websight-v2/
 ## Key Features
 
 ### Data Split Strategy
+
 - **70% for SFT**: Split into train (80%), val (10%), test (10%)
 - **30% for KTO**: Reserved for preference-based optimization
 - No overlap between SFT and KTO data
 
 ### Training Pipeline
+
 1. **SFT (Supervised Fine-Tuning)**: Train on next-frame action prediction
 2. **KTO (Preference Optimization)**: Refine using task completion signals
 
 ### Model Architecture
+
 - Base model: UI-TARS 1.5 (7B parameters)
 - Fine-tuning: LoRA adapters
 - Task: Desktop automation with PyAutoGUI code generation
@@ -100,7 +113,7 @@ See `requirements-training.txt` for dependencies.
 ## Citation
 
 If you use this code or data, please cite:
+
 - AgentNet dataset
 - UI-TARS model
 - LLaMA-Factory framework
-

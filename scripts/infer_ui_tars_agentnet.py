@@ -18,7 +18,9 @@ from transformers import AutoModelForVision2Seq, AutoProcessor
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Single-shot inference for UI-TARS AgentNet")
+    parser = argparse.ArgumentParser(
+        description="Single-shot inference for UI-TARS AgentNet"
+    )
     parser.add_argument(
         "--image",
         type=str,
@@ -34,7 +36,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model-id",
         type=str,
-        default="/hai/scratch/asanshay/websight-v2/merged/ui-tars-1.5-7b-agentnet-full",
+        default="Asanshay/websight-2-7B-kto",
         help="Hugging Face model id or local path.",
     )
     parser.add_argument(
@@ -144,4 +146,3 @@ Use normalized coordinates (0.0 to 1.0) for all position-based commands.
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
