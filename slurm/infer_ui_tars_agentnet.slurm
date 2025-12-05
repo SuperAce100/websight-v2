@@ -70,10 +70,20 @@ model.eval()
 
 image = Image.open(image_path).convert("RGB")
 
-# For Qwen2.5-VL style models, pass images and plain text; the processor
-# will insert the correct vision tokens. Do NOT add custom <image> tokens.
+# Build a chat-style message so the processor inserts the correct vision tokens.
+messages = [
+    {"role": "system", "content": "You are a helpful desktop automation assistant."},
+    {
+        "role": "user",
+        "content": [
+            {"type": "image"},
+            {"type": "text", "text": prompt},
+        ],
+    },
+]
+chat_text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 inputs = processor(
-    text=[prompt],
+    text=chat_text,
     images=[image],
     return_tensors="pt",
 ).to(model.device)
@@ -81,11 +91,7 @@ inputs = processor(
 with torch.inference_mode():
     output_ids = model.generate(**inputs, max_new_tokens=64, do_sample=False)
 
-result = processor.decode(
-    output_ids[0],
-    skip_special_tokens=True,
-    clean_up_tokenization_spaces=True,
-).strip()
+result = processor.decode(output_ids[0], skip_special_tokens=True, clean_up_tokenization_spaces=True).strip()
 print("\nRaw model output:")
 print(result)
 PY
