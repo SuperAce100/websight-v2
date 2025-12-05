@@ -138,11 +138,14 @@ def parse_uitars_response(text: str, image_height: int, image_width: int) -> Tup
     if thought_match:
         thought = thought_match.group(1).strip()
     
-    # Extract action
-    if "Action:" not in text:
+    # Extract action - check for Code: first (if model outputs Thought/Action/Code format)
+    # then fall back to Action: (if model outputs Thought/Action format)
+    if "Code:" in text:
+        action_str = text.split("Code:")[-1].strip()
+    elif "Action:" in text:
+        action_str = text.split("Action:")[-1].strip()
+    else:
         return thought, []
-    
-    action_str = text.split("Action:")[-1].strip()
     
     # Handle type() with special characters
     if "type(content" in action_str:
