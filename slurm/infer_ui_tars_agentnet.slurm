@@ -25,10 +25,6 @@ echo "Workspace : ${WORKSPACE_DIR}"
 echo "Start     : $(date)"
 echo ""
 
-if [ ! -f "${IMAGE_PATH}" ]; then
-    echo "✗ Error: IMAGE_PATH not found: ${IMAGE_PATH}"
-    exit 1
-fi
 
 # Caches to scratch
 SCRATCH_ROOT="/hai/scratch/asanshay/websight-v2"
