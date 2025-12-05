@@ -96,15 +96,7 @@ For each step, provide your response in this format:
   - Describe expected final text outcome
 - Use first-person perspective in reasoning
 
-**Action:** Provide clear, concise, and actionable instructions:
-- If the action involves interacting with a specific target:
-  - Describe target explicitly without using coordinates
-  - Specify element names when possible
-  - Describe features (shape, color, position) if name unavailable
-  - For window control buttons, identify correctly (minimize, maximize, close)
-- If the action involves keyboard actions like 'press', 'write', 'hotkey':
-  - Consolidate repetitive keypresses with count
-  - Specify expected text outcome for typing actions
+Your thought should be extremely brief, less than 50 words.
 
 **Code:** Finally, output the action as a PyAutoGUI command (e.g. 
 pyautogui.click(x, y), etc.) or the following functions:
