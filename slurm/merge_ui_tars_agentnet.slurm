@@ -97,9 +97,10 @@ if [ ! -d "${MERGE_OUT}" ]; then
     echo "✗ Error: merged output directory not found: ${MERGE_OUT}"
     exit 1
 fi
-huggingface-cli upload "${MERGE_OUT}/." "${HUB_MODEL_ID}" \
+huggingface-cli upload "${HUB_MODEL_ID}" \
     --repo-type model \
     --token "${HF_TOKEN}" \
+    --local-dir "${MERGE_OUT}" \
     --exclude ".git/*"
 echo "✓ Push complete: https://huggingface.co/${HUB_MODEL_ID}"
 
