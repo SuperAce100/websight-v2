@@ -439,6 +439,33 @@ def split_dataset(
     return train_records, val_records, test_records
 
 
+def split_sft_kto(
+    records: List[Dict],
+    kto_ratio: float = 0.3,
+    seed: int = 42,
+) -> Tuple[List[Dict], List[Dict]]:
+    """
+    Split dataset into SFT and KTO portions.
+    
+    Args:
+        records: List of all records
+        kto_ratio: Fraction for KTO training
+        seed: Random seed
+    
+    Returns:
+        Tuple of (sft_records, kto_records)
+    """
+    random.seed(seed)
+    shuffled = records.copy()
+    random.shuffle(shuffled)
+    
+    kto_size = int(len(shuffled) * kto_ratio)
+    kto_records = shuffled[:kto_size]
+    sft_records = shuffled[kto_size:]
+    
+    return sft_records, kto_records
+
+
 # ============================================================================
 # Main Execution
 # ============================================================================
@@ -475,13 +502,24 @@ def main():
         "--val-ratio",
         type=float,
         default=0.1,
-        help="Validation set ratio",
+        help="Validation set ratio (applied to SFT portion)",
     )
     parser.add_argument(
         "--test-ratio",
         type=float,
         default=0.1,
-        help="Test set ratio",
+        help="Test set ratio (applied to SFT portion)",
+    )
+    parser.add_argument(
+        "--kto-ratio",
+        type=float,
+        default=0.3,
+        help="Ratio of data to reserve for KTO training (default: 0.3 = 30%%)",
+    )
+    parser.add_argument(
+        "--save-kto-split",
+        action="store_true",
+        help="Save the KTO split to a separate file for later KTO transformation",
     )
     parser.add_argument(
         "--seed",
@@ -530,13 +568,29 @@ def main():
 
     print(f"Loaded {len(records)} trajectory records")
 
-    # Split into train/val/test
+    # First split into SFT vs KTO portions
+    sft_records, kto_records = split_sft_kto(records, args.kto_ratio, args.seed)
+
+    print(
+        f"\nSplit into SFT/KTO: {len(sft_records)} SFT ({(1-args.kto_ratio)*100:.0f}%), "
+        f"{len(kto_records)} KTO ({args.kto_ratio*100:.0f}%)"
+    )
+
+    # Save KTO split if requested
+    if args.save_kto_split:
+        kto_split_path = output_dir / "agentnet_kto_split.jsonl"
+        with open(kto_split_path, "w", encoding="utf-8") as f:
+            for record in kto_records:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        print(f"Saved {len(kto_records)} KTO records to {kto_split_path}")
+
+    # Now split SFT portion into train/val/test
     train_records, val_records, test_records = split_dataset(
-        records, args.val_ratio, args.test_ratio, args.seed
+        sft_records, args.val_ratio, args.test_ratio, args.seed
     )
 
     print(
-        f"Split: {len(train_records)} train, {len(val_records)} val, {len(test_records)} test"
+        f"SFT split: {len(train_records)} train, {len(val_records)} val, {len(test_records)} test"
     )
 
     # Transform each split

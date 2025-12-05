@@ -1,6 +1,7 @@
 #!/bin/bash
 # Prepare AgentNet data for KTO (Kahneman-Tversky Optimization) training
 # - Transforms agentnet trajectories into KTO format with binary labels
+# - Uses the 30% KTO split created by transform_agentnet_for_training.py
 # - Outputs combined file with positive/negative examples based on task_completed status
 
 set -euo pipefail
@@ -10,14 +11,15 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
 # Default paths
-DEFAULT_RAW_ROOT="/hai/scratch/asanshay/websight-v2/agentnet"
-RAW_ROOT="${AGENTNET_DATA_ROOT:-${DEFAULT_RAW_ROOT}}"
-MERGED_JSONL="${RAW_ROOT}/agentnet_all.jsonl"
-
 DEFAULT_OUTPUT_DIR="${REPO_ROOT}/data"
 OUTPUT_DIR="${AGENTNET_KTO_OUTPUT_DIR:-${DEFAULT_OUTPUT_DIR}}"
 mkdir -p "${OUTPUT_DIR}"
 
+# KTO split file (created by transform_agentnet_for_training.py)
+KTO_SPLIT_FILE="${OUTPUT_DIR}/agentnet_kto_split.jsonl"
+
+DEFAULT_RAW_ROOT="/hai/scratch/asanshay/websight-v2/agentnet"
+RAW_ROOT="${AGENTNET_DATA_ROOT:-${DEFAULT_RAW_ROOT}}"
 DEFAULT_IMAGES_DIR="${RAW_ROOT}/images"
 IMAGES_DIR="${AGENTNET_IMAGE_DIR:-${DEFAULT_IMAGES_DIR}}"
 
@@ -28,15 +30,23 @@ INCLUDE_REFLECTION="${AGENTNET_KTO_INCLUDE_REFLECTION:-0}"
 echo "========================================"
 echo "AgentNet KTO Data Preparation"
 echo "========================================"
-echo "Input     : ${MERGED_JSONL}"
+echo "Input     : ${KTO_SPLIT_FILE}"
 echo "Output    : ${OUTPUT_DIR}/agentnet_kto.jsonl"
 echo "Images    : ${IMAGES_DIR}"
 echo ""
 
 # Check input file exists
-if [ ! -f "${MERGED_JSONL}" ]; then
-    echo "✗ Error: ${MERGED_JSONL} not found."
-    echo "  Run: sbatch slurm/prepare_agentnet.slurm first to create merged file"
+if [ ! -f "${KTO_SPLIT_FILE}" ]; then
+    echo "✗ Error: ${KTO_SPLIT_FILE} not found."
+    echo "  This file should be created by running transform_agentnet_for_training.py"
+    echo "  with the --save-kto-split flag."
+    echo ""
+    echo "  If you haven't run the SFT data transformation yet, please run:"
+    echo "    python scripts/agentnet_scripts/transform_agentnet_for_training.py \\"
+    echo "      --input /path/to/agentnet_all.jsonl \\"
+    echo "      --output-dir data \\"
+    echo "      --kto-ratio 0.3 \\"
+    echo "      --save-kto-split"
     exit 1
 fi
 
@@ -55,7 +65,7 @@ fi
 # Build transformation command
 ARGS=(
     scripts/agentnet_scripts/transform_agentnet_for_kto.py
-    --input "${MERGED_JSONL}"
+    --input "${KTO_SPLIT_FILE}"
     --output "${OUTPUT_DIR}/agentnet_kto.jsonl"
     --base-image-dir "${IMAGES_DIR}"
     --min-traj-length "${MIN_TRAJ}"
