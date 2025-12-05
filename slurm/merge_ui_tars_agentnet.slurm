@@ -98,8 +98,8 @@ if [ ! -d "${MERGE_OUT}" ]; then
     exit 1
 fi
 huggingface-cli upload \
-    "${MERGE_OUT}" \
     "${HUB_MODEL_ID}" \
+    "${MERGE_OUT}" \
     --repo-type model \
     --token "${HF_TOKEN}" \
     --exclude ".git/*"
