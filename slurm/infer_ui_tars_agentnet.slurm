@@ -69,12 +69,23 @@ model = AutoModelForVision2Seq.from_pretrained(
 model.eval()
 
 image = Image.open(image_path).convert("RGB")
-inputs = processor(text=f"<image>\n{prompt}", images=image, return_tensors="pt").to(model.device)
+
+# For Qwen2.5-VL style models, pass images and plain text; the processor
+# will insert the correct vision tokens. Do NOT add custom <image> tokens.
+inputs = processor(
+    text=[prompt],
+    images=[image],
+    return_tensors="pt",
+).to(model.device)
 
 with torch.inference_mode():
     output_ids = model.generate(**inputs, max_new_tokens=64, do_sample=False)
 
-result = processor.decode(output_ids[0], skip_special_tokens=True, clean_up_tokenization_spaces=True).strip()
+result = processor.decode(
+    output_ids[0],
+    skip_special_tokens=True,
+    clean_up_tokenization_spaces=True,
+).strip()
 print("\nRaw model output:")
 print(result)
 PY
