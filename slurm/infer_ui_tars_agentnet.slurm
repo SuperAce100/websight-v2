@@ -80,6 +80,11 @@ need to perform a series of pyautogui actions to complete the task.
 
 For each step, provide your response in this format:
 
+
+**Code:** Finally, output the action as a PyAutoGUI command (e.g. 
+pyautogui.click(x, y), etc.)
+
+
 **Thought:**
 - Next Action Analysis:
   - List possible next actions based on current state
@@ -92,9 +97,6 @@ For each step, provide your response in this format:
   - Describe expected final text outcome
 
 Your thought should be extremely brief, less than 50 words.
-
-**Code:** Finally, output the action as a PyAutoGUI command (e.g. 
-pyautogui.click(x, y), etc.)
 
 Use normalized coordinates (0.0 to 1.0) for all position-based commands.
 """
