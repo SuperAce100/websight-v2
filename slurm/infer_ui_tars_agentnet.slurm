@@ -76,7 +76,7 @@ You are a GUI agent. You are given a task and your action history, with screensh
 ## Output Format
 ```
 Thought: ...
-Action: ...
+Action: # Put PyAutoGUI Code Here
 ```
 
 ## Action Space
@@ -94,7 +94,7 @@ finished(content='xxx') # Use escape characters \\', \\", and \\n in content par
 
 ## Note
 - Use ENGLISH in `Thought` part.
-- Write a small plan and finally summarize your next action (with its target element) in one sentence in `Thought` part.
+- Write a small plan and finally summarize your next action (with its target element) in one sentence in `Thought` part. Then put the action itself in the `Action` part.
 """
 
 messages = [
@@ -106,7 +106,7 @@ messages = [
         "role": "user",
         "content": [
             {"type": "image"},
-            {"type": "text", "text": prompt},
+            {"type": "text", "text": f"The user has said: {prompt}"},
         ],
     },
 ]
