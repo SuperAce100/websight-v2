@@ -1,0 +1,168 @@
+# OSWorld UI-TARS Agent Setup Guide
+
+This guide walks you through setting up and running the UI-TARS agent on AWS for OSWorld evaluation.
+
+## Prerequisites
+
+- AWS account with EC2 access
+- AWS CLI configured locally
+- SSH access to EC2 instances
+- Python 3.8+ on the EC2 instance
+
+## Step 0: AWS Instance Setup
+
+### Launch EC2 Instance
+
+1. **AMI**: Choose Ubuntu 22.04 Deep Learning AMI (or similar with CUDA)
+2. **Instance Type**: `g5.12xlarge` (4x A10G, 96GB) - for 4 parallel environments
+3. **Storage**: 100GB gp3
+4. **Security Group**: 
+   - Allow SSH (port 22) from your IP
+   - Allow all traffic from `0.0.0.0/0` (or restrict to your needs)
+5. **Key Pair**: Create or use an existing key pair (e.g., `osworld-admin.pem`)
+
+### Configure AWS Credentials
+
+**Important**: You must configure AWS credentials on the EC2 instance before running the evaluation.
+
+On your local machine, configure AWS CLI:
+
+```bash
+aws configure
+```
+
+You'll need:
+- **AWS Access Key ID**: `YOUR_ACCESS_KEY_ID`
+- **AWS Secret Access Key**: `YOUR_SECRET_ACCESS_KEY`
+- **Default region**: `us-east-1` (or your preferred region)
+- **Default output format**: `json`
+
+**Note**: Store your credentials securely. Never commit them to version control.
+
+### AWS Resource Information
+
+After launching your instance, note down:
+- **VPC ID**: `vpc-xxxxxxxxxxxxxxxxx`
+- **Subnet ID**: `subnet-xxxxxxxxxxxxxxxxx`
+- **Security Group ID**: `sg-xxxxxxxxxxxxxxxxx`
+- **Key Name**: `osworld-admin.pem` (or your key name)
+- **Public IPv4 Address**: `x.x.x.x` (your instance's public IP)
+
+## Step 1: SSH into Instance
+
+```bash
+ssh -i osworld-admin.pem ubuntu@<YOUR_AWS_IP>
+```
+
+Replace `<YOUR_AWS_IP>` with your instance's public IP address.
+
+## Step 2: Install OSWorld and Dependencies
+
+```bash
+cd ~
+git clone https://github.com/xlang-ai/OSWorld.git
+cd OSWorld
+pip install -r requirements.txt
+pip install --upgrade pyOpenSSL transformers accelerate pyperclip wrapt-timeout-decorator
+```
+
+## Step 3: Copy Agent Files
+
+Copy the UI-TARS agent files to the OSWorld directory:
+
+```bash
+# Copy my_uitars_agent.py
+nano mm_agents/my_uitars_agent.py
+# Paste the contents of my_uitars_agent.py
+# Press Ctrl+O, then Enter, then Ctrl+X
+
+# Copy run_multienv_my_uitars.py
+nano run_multienv_my_uitars.py
+# Paste the contents of run_multienv_my_uitars.py
+# Press Ctrl+O, then Enter, then Ctrl+X
+```
+
+Alternatively, you can use `scp` from your local machine:
+
+```bash
+# From your local machine
+scp -i osworld-admin.pem osworld/my_uitars_agent.py ubuntu@<YOUR_AWS_IP>:~/OSWorld/mm_agents/
+scp -i osworld-admin.pem osworld/run_multienv_my_uitars.py ubuntu@<YOUR_AWS_IP>:~/OSWorld/
+```
+
+## Step 4: Configure Environment Variables
+
+Create a `.env` file or export environment variables:
+
+```bash
+nano .env
+```
+
+Add the following (replace with your actual values):
+
+```bash
+AWS_REGION=us-east-1
+AWS_SUBNET_ID=subnet-xxxxxxxxxxxxxxxxx
+AWS_SECURITY_GROUP_ID=sg-xxxxxxxxxxxxxxxxx
+KEY_NAME=osworld-admin.pem
+```
+
+Or export them directly:
+
+```bash
+export AWS_REGION=us-east-1
+export AWS_SUBNET_ID=subnet-xxxxxxxxxxxxxxxxx
+export AWS_SECURITY_GROUP_ID=sg-xxxxxxxxxxxxxxxxx
+export KEY_NAME=osworld-admin.pem
+```
+
+**Important**: Make sure AWS credentials are configured on the EC2 instance:
+
+```bash
+aws configure
+# Enter your Access Key ID
+# Enter your Secret Access Key
+# Set default region (e.g., us-east-1)
+# Set default output format (json)
+```
+
+## Step 5: Upgrade Required Packages
+
+```bash
+pip install --upgrade transformers>=4.45.0
+pip install --upgrade pyOpenSSL
+```
+
+## Step 6: Run Evaluation
+
+Run the evaluation script:
+
+```bash
+python3 run_multienv_my_uitars.py \
+    --model Asanshay/websight-2-7B-kto \
+    --provider_name aws \
+    --headless \
+    --max_steps 15 \
+    --num_envs 4 \
+    --client_password osworld-public-evaluation
+```
+
+### Command Line Options
+
+- `--model`: HuggingFace model ID (default: `Asanshay/websight-2-7B-kto`)
+- `--provider_name`: Provider name (use `aws` for AWS EC2)
+- `--headless`: Run in headless mode (required for EC2)
+- `--max_steps`: Maximum steps per task (default: 15)
+- `--num_envs`: Number of parallel environments (default: 1, use 4 for g5.12xlarge)
+- `--client_password`: OSWorld client password (default: `osworld-public-evaluation`)
+- `--region`: AWS region (default: `us-east-1`)
+- `--observation_type`: Observation type (default: `screenshot`)
+- `--device`: Device to run model on (`auto`, `cuda`, `mps`, `cpu`)
+- `--dtype`: Model data type (`auto`, `float16`, `bfloat16`, `float32`)
+
+## Additional Resources
+
+- [OSWorld GitHub Repository](https://github.com/xlang-ai/OSWorld)
+- [AWS EC2 Documentation](https://docs.aws.amazon.com/ec2/)
+- [AWS CLI Configuration Guide](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html)
+
