@@ -26,61 +26,60 @@ from PIL import Image
 logger = logging.getLogger("desktopenv.agent")
 
 # UI-TARS action space and prompts
-UITARS_ACTION_SPACE = """
-click(start_box='<|box_start|>(x1,y1)<|box_end|>')
-left_double(start_box='<|box_start|>(x1,y1)<|box_end|>')
-right_single(start_box='<|box_start|>(x1,y1)<|box_end|>')
-drag(start_box='<|box_start|>(x1,y1)<|box_end|>', end_box='<|box_start|>(x3,y3)<|box_end|>')
-hotkey(key='')
-type(content='') #If you want to submit your input, use "\\n" at the end of `content`.
-scroll(start_box='<|box_start|>(x1,y1)<|box_end|>', direction='down or up or right or left')
-wait() #Sleep for 5s and take a screenshot to check for any changes.
-finished()
-"""
+UITARS_ACTION_SPACE = """click(start_box='(x,y)')
+left_double(start_box='(x,y)')
+right_single(start_box='(x,y)')
+drag(start_box='(x1,y1)', end_box='(x2,y2)')
+hotkey(key='key1 key2')
+type(content='text')
+scroll(start_box='(x,y)', direction='up|down|left|right')
+wait()
+finished()"""
 
-UITARS_SYSTEM_PROMPT = """You are a GUI agent. You are given a task and a screenshot of the screen. You 
-need to perform a series of pyautogui actions to complete the task.
+UITARS_SYSTEM_PROMPT = """You are a GUI automation agent. You look at screenshots and output actions to complete tasks.
 
-For each step, provide your response in this format:
+SCREEN: 2560x1440 pixels. Coordinates are (x,y) where x=0-2560, y=0-1440.
 
-**Thought:**
-- Step by Step Progress Assessment:
-  - Analyze completed task parts and their contribution to the overall goal
-  - Reflect on potential errors, unexpected results, or obstacles
-  - If previous action was incorrect, predict a logical recovery step
-- Next Action Analysis:
-  - List possible next actions based on current state
-  - Evaluate options considering current state and previous actions
-  - Propose most logical next action
-  - Anticipate consequences of the proposed action
-- For Text Input:
-  - Note current cursor position
-  - Consolidate repetitive actions (specify count for multiple keypresses)
-  - Describe expected final text outcome
-- Use first-person perspective in reasoning
+OUTPUT FORMAT (strict):
+Thought: [one sentence describing what you see and what to do next]
+Action: [exactly one function call from the action space below]
 
-**Action:** Provide clear, concise, and actionable instructions:
-- If the action involves interacting with a specific target:
-  - Describe target explicitly without using coordinates
-  - Specify element names when possible
-  - Describe features (shape, color, position) if name unavailable
-  - For window control buttons, identify correctly (minimize, maximize, close)
-- If the action involves keyboard actions like 'press', 'write', 'hotkey':
-  - Consolidate repetitive keypresses with count
-  - Specify expected text outcome for typing actions
+ACTION SPACE:
+{action_space}
 
-**Code:** Finally, output the action as a PyAutoGUI command (e.g. 
-pyautogui.click(x, y), etc.) or the following functions:
-- {"name": "computer.triple_click", "description": "Triple click on the screen",
-"parameters": {"type": "object", "properties": {"x": {"type": "number", "description": 
-"The x coordinate of the triple click"}, "y": {"type": "number", "description": "The y 
-coordinate of the triple click"}}, "required": ["x", "y"]}}
-- {"name": "computer.terminate", "description": "Terminate the current task and report 
-its completion status", "parameters": {"type": "object", "properties": {"status": {"type":
-"string", "enum": ["success", "failure"], "description": "The status of the task"}}, 
-"required": ["status"]}}
+KEYBOARD SHORTCUTS (use hotkey):
+- hotkey(key='ctrl t') - new tab
+- hotkey(key='ctrl w') - close tab  
+- hotkey(key='ctrl shift t') - restore closed tab
+- hotkey(key='ctrl l') - focus address bar
+- hotkey(key='ctrl a') - select all
+- hotkey(key='ctrl c') - copy
+- hotkey(key='ctrl v') - paste
+- hotkey(key='alt left') - back
+- hotkey(key='f5') - refresh
 
-Use normalized coordinates (0.0 to 1.0) for all position-based commands.
+EXAMPLES:
+Thought: I see a search box at coordinates (800, 100). I will click it.
+Action: click(start_box='(800,100)')
+
+Thought: I need to type the search query and submit.
+Action: type(content='my search query\\n')
+
+Thought: The tab was closed. I will restore it with Ctrl+Shift+T.
+Action: hotkey(key='ctrl shift t')
+
+Thought: I need to scroll down to see more content.
+Action: scroll(start_box='(1280,720)', direction='down')
+
+Thought: The task is complete.
+Action: finished()
+
+RULES:
+- Action must be EXACTLY a function call, never natural language
+- Always include coordinates for click/scroll actions
+- Use hotkey() for keyboard shortcuts instead of clicking
+
+TASK: {instruction}
 """
 
 # Constants
@@ -158,6 +157,9 @@ def parse_uitars_response(
     """
     Parse UI-TARS model response into structured actions.
 
+    Searches the ENTIRE response for any valid action patterns, not just after "Action:".
+    This handles cases where the model outputs actions in non-standard formats.
+
     Returns:
         Tuple of (thought, list of action dicts)
     """
@@ -169,68 +171,94 @@ def parse_uitars_response(
     if thought_match:
         thought = thought_match.group(1).strip()
 
-    # Extract action - try structured formats first, then search anywhere in response
+    # List of action patterns to search for anywhere in the response
+    ACTION_PATTERNS = [
+        r"(click\s*\(\s*start_box\s*=\s*['\"].*?['\"]\s*\))",
+        r"(left_double\s*\(\s*start_box\s*=\s*['\"].*?['\"]\s*\))",
+        r"(right_single\s*\(\s*start_box\s*=\s*['\"].*?['\"]\s*\))",
+        r"(drag\s*\(\s*start_box\s*=\s*['\"].*?['\"]\s*,\s*end_box\s*=\s*['\"].*?['\"]\s*\))",
+        r"(scroll\s*\(\s*start_box\s*=\s*['\"].*?['\"]\s*,\s*direction\s*=\s*['\"].*?['\"]\s*\))",
+        r"(scroll\s*\(\s*direction\s*=\s*['\"].*?['\"]\s*\))",
+        r"(hotkey\s*\(\s*key\s*=\s*['\"].*?['\"]\s*\))",
+        r"(type\s*\(\s*content\s*=\s*['\"].*?['\"]\s*\))",
+        r"(wait\s*\(\s*\))",
+        r"(finished\s*\(\s*\))",
+    ]
+
     action_str = None
 
+    # First try the standard extraction methods
     if "Code:" in text:
         action_str = text.split("Code:")[-1].strip()
     elif "Action:" in text:
         action_str = text.split("Action:")[-1].strip()
-    else:
-        # Search for any action function call anywhere in the response
-        # These are the valid UI-TARS actions
-        action_patterns = [
-            r"(click\s*\([^)]*\))",
-            r"(left_double\s*\([^)]*\))",
-            r"(left_single\s*\([^)]*\))",
-            r"(right_single\s*\([^)]*\))",
-            r"(drag\s*\([^)]*\))",
-            r"(hotkey\s*\([^)]*\))",
-            r"(type\s*\([^)]*\))",
-            r"(scroll\s*\([^)]*\))",
-            r"(wait\s*\(\s*\))",
-            r"(finished\s*\(\s*\))",
-            r"(press\s*\([^)]*\))",
-            r"(press_enter\s*\(\s*\))",
-            r"(moveTo\s*\([^)]*\))",
-            r"(dragTo\s*\([^)]*\))",
-            r"(tripleClick\s*\([^)]*\))",
-            r"(middleClick\s*\([^)]*\))",
-            r"(hscroll\s*\([^)]*\))",
-            r"(write\s*\([^)]*\))",
-            r"(terminate\s*\([^)]*\))",
-            r"(call_user\s*\(\s*\))",
+
+    # Try parsing the extracted action string first
+    if action_str:
+        # Handle type() with special characters
+        if "type(content" in action_str:
+            pattern = r"type\(content='(.*?)'\)"
+            match = re.search(pattern, action_str)
+            if match:
+                content = escape_single_quotes(match.group(1))
+                action_str = f"type(content='{content}')"
+
+        parsed = parse_action(action_str.replace("\n", "\\n").strip())
+        if parsed is not None:
+            action_type = parsed["function"]
+            params = parsed["args"]
+            action_inputs = _process_action_params(params)
+            return thought, [
+                {
+                    "thought": thought,
+                    "action_type": action_type,
+                    "action_inputs": action_inputs,
+                }
+            ]
+
+    # If standard parsing failed, search the ENTIRE response for any action pattern
+    for pattern in ACTION_PATTERNS:
+        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+        if match:
+            action_str = match.group(1).strip()
+            logger.debug(f"Found action pattern in response: {action_str}")
+
+            # Handle type() with special characters
+            if "type(content" in action_str.lower():
+                type_pattern = r"type\(content='(.*?)'\)"
+                type_match = re.search(type_pattern, action_str, re.IGNORECASE)
+                if type_match:
+                    content = escape_single_quotes(type_match.group(1))
+                    action_str = f"type(content='{content}')"
+
+            parsed = parse_action(action_str.replace("\n", "\\n").strip())
+            if parsed is not None:
+                action_type = parsed["function"]
+                params = parsed["args"]
+                action_inputs = _process_action_params(params)
+                return thought, [
+                    {
+                        "thought": thought,
+                        "action_type": action_type,
+                        "action_inputs": action_inputs,
+                    }
+                ]
+
+    # Check for terminal actions anywhere in text
+    if re.search(r"\bfinished\s*\(\s*\)", text, re.IGNORECASE):
+        return thought, [
+            {"thought": thought, "action_type": "finished", "action_inputs": {}}
+        ]
+    if re.search(r"\bwait\s*\(\s*\)", text, re.IGNORECASE):
+        return thought, [
+            {"thought": thought, "action_type": "wait", "action_inputs": {}}
         ]
 
-        for pattern in action_patterns:
-            match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-            if match:
-                action_str = match.group(1)
-                break
+    return thought, []
 
-    if action_str is None:
-        return thought, []
 
-    # Handle type() with special characters - need a more robust pattern for nested quotes
-    if "type(" in action_str.lower():
-        # Try to extract content, handling various quote styles
-        pattern = r"type\s*\(\s*content\s*=\s*['\"](.+?)['\"]\s*\)"
-        match = re.search(pattern, action_str, re.DOTALL)
-        if match:
-            content = escape_single_quotes(match.group(1))
-            action_str = f"type(content='{content}')"
-
-    # Parse the action
-    action_str = action_str.replace("\n", "\\n").strip()
-    parsed = parse_action(action_str)
-
-    if parsed is None:
-        return thought, []
-
-    action_type = parsed["function"]
-    params = parsed["args"]
-
-    # Process coordinates
+def _process_action_params(params: Dict) -> Dict:
+    """Process action parameters, normalizing coordinates."""
     action_inputs = {}
     for param_name, param in params.items():
         if param == "":
@@ -243,16 +271,12 @@ def parse_uitars_response(
             coord_match = re.search(r"\((\d+),\s*(\d+)\)", param)
             if coord_match:
                 x, y = int(coord_match.group(1)), int(coord_match.group(2))
-                # Normalize coordinates (UI-TARS uses 1000-scale)
+                # Normalize coordinates
                 # IMPORTANT: Set these to your model's training resolution
-                if x > 1 or y > 1:
-                    x_norm = x / 2560.0
-                    y_norm = y / 1440.0
+                x_norm = x / 2560.0
+                y_norm = y / 1440.0
                 action_inputs[param_name] = str([x_norm, y_norm, x_norm, y_norm])
-
-    return thought, [
-        {"thought": thought, "action_type": action_type, "action_inputs": action_inputs}
-    ]
+    return action_inputs
 
 
 def actions_to_pyautogui(
@@ -501,6 +525,10 @@ class MyUITarsAgent:
         self.history_images = []
         self.history_responses = []
 
+        # Stuck detection
+        self.consecutive_waits = 0
+        self.last_action_type = None
+
         # Load model
         self._load_model(device, dtype)
 
@@ -588,11 +616,23 @@ class MyUITarsAgent:
 
         return image
 
-    def _build_prompt(self, instruction: str) -> str:
+    def _build_prompt(self, instruction: str, add_recovery_hint: bool = False) -> str:
         """Build the UI-TARS prompt."""
-        return UITARS_SYSTEM_PROMPT.format(
+        prompt = UITARS_SYSTEM_PROMPT.format(
             action_space=UITARS_ACTION_SPACE, instruction=instruction
         )
+
+        if add_recovery_hint:
+            prompt += """
+
+WARNING: Previous actions failed. You MUST output a valid action now.
+- Your Action line MUST be exactly like: click(start_box='(x,y)') or hotkey(key='ctrl t')
+- Do NOT write sentences in Action. Only function calls.
+- Try a keyboard shortcut if clicking isn't working.
+- Look carefully at the screenshot for clickable elements.
+"""
+
+        return prompt
 
     def _build_messages(self, instruction: str, image: Image.Image) -> List[Dict]:
         """Build conversation messages for the model."""
@@ -650,8 +690,15 @@ class MyUITarsAgent:
         )
         self.history_images.append(screenshot_bytes)
 
+        # Check if stuck (3+ consecutive WAITs)
+        add_recovery_hint = self.consecutive_waits >= 2
+        if add_recovery_hint:
+            logger.info(
+                f"Agent appears stuck ({self.consecutive_waits} consecutive WAITs), adding recovery hint"
+            )
+
         # Build prompt
-        prompt = self._build_prompt(instruction)
+        prompt = self._build_prompt(instruction, add_recovery_hint=add_recovery_hint)
 
         # Build messages in Qwen2-VL chat format
         messages = [
@@ -714,6 +761,7 @@ class MyUITarsAgent:
                 self.thoughts.append(response)
                 self.actions.append(["WAIT"])
                 self.history_responses.append(response)
+                self.consecutive_waits += 1
                 return response, ["WAIT"]
 
             # Check for terminal actions
@@ -728,6 +776,7 @@ class MyUITarsAgent:
                 self.thoughts.append(thought)
                 self.actions.append(["WAIT"])
                 self.history_responses.append(response)
+                self.consecutive_waits += 1
                 return response, ["WAIT"]
 
             # Convert to pyautogui
@@ -738,6 +787,9 @@ class MyUITarsAgent:
             self.thoughts.append(thought)
             self.actions.append([pyautogui_code])
             self.history_responses.append(response)
+
+            # Reset stuck counter on successful action
+            self.consecutive_waits = 0
 
             return response, [pyautogui_code]
 
@@ -759,5 +811,7 @@ class MyUITarsAgent:
         self.observations = []
         self.history_images = []
         self.history_responses = []
+        self.consecutive_waits = 0
+        self.last_action_type = None
 
         logger.info("MyUITarsAgent reset")
